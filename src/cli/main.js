@@ -162,11 +162,13 @@ export async function main(argv, io = {}) {
       // and the approval store all at once.
       const bound = resolveWorkspace({ env }).root;
       const real = (/** @type {string} */ dir) => {
+        let resolved;
         try {
-          return fs.realpathSync(dir);
+          resolved = fs.realpathSync.native(dir);
         } catch {
-          return path.resolve(dir);
+          resolved = path.resolve(dir);
         }
+        return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
       };
       if (real(workspace.root) !== real(bound)) {
         throw new AutoDevError(ErrorCodes.PROJECT_SCOPE_VIOLATION, 'This session is bound to its workspace; --workspace cannot point at a different one.');

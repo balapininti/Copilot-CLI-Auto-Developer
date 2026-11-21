@@ -146,13 +146,33 @@ export function approvedRepoUrl(manifest, repo, env = process.env) {
 }
 
 /**
+ * Compare two paths that name an existing folder. On Windows git and Node can
+ * spell the same folder differently (8.3 short names such as RUNNER~1, forward
+ * slashes, letter case), so both are resolved by the operating system first.
+ * @param {string} a
+ * @param {string} b
+ */
+export function samePath(a, b) {
+  const canonical = (/** @type {string} */ value) => {
+    let resolved;
+    try {
+      resolved = fs.realpathSync.native(value);
+    } catch {
+      resolved = path.resolve(value);
+    }
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  return canonical(a) === canonical(b);
+}
+
+/**
  * @param {string} repoPath
  */
 export async function inspectRepo(repoPath) {
   if (!fs.existsSync(repoPath)) return { exists: false, isRepo: false };
   const probe = await runCommand('git', ['rev-parse', '--show-toplevel'], { cwd: repoPath });
   const top = probe.stdout.trim();
-  const isRepo = probe.exitCode === 0 && top !== '' && fs.realpathSync(top) === fs.realpathSync(repoPath);
+  const isRepo = probe.exitCode === 0 && top !== '' && samePath(top, repoPath);
   if (!isRepo) return { exists: true, isRepo: false, empty: fs.readdirSync(repoPath).length === 0 };
 
   const status = (await git(['status', '--porcelain=v1', '--untracked-files=all'], repoPath)).stdout;
