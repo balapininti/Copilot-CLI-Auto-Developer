@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+*.log
+*.tmp
+.DS_Store
+# Local workspace data must never be committed with the framework.
+/projects/
+/state/
+.env
+.env.*

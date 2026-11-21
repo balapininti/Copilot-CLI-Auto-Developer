@@ -1,0 +1,275 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/balapininti/Copilot-CLI-Auto-Developer/schemas/project.schema.json",
+  "title": "Auto Developer project manifest (project.yaml)",
+  "description": "Project-specific configuration. Holds names of environment variables and credential entries, never secret values. Fields may be null while onboarding is incomplete; `autodev project validate` lists what is still missing.",
+  "type": "object",
+  "required": ["id"],
+  "additionalProperties": false,
+  "definitions": {
+    "nullableString": { "type": ["string", "null"] },
+    "envName": {
+      "description": "Name of an environment variable (not its value).",
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "secretName": {
+      "description": "Name of a secret: looked up as an environment variable, then in the OS credential store as autodev/<name>.",
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$"
+    },
+    "stringList": { "type": "array", "items": { "type": "string" } },
+    "policy": { "enum": ["approval-required", "prohibited", "allowed"] },
+    "commandList": {
+      "description": "Commands as argument arrays, run without a shell.",
+      "type": "array",
+      "items": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+    },
+    "testCommands": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compile": { "$ref": "#/definitions/commandList" },
+        "static": { "$ref": "#/definitions/commandList" },
+        "unit": { "$ref": "#/definitions/commandList" },
+        "integration": { "$ref": "#/definitions/commandList" },
+        "contract": { "$ref": "#/definitions/commandList" },
+        "regression": { "$ref": "#/definitions/commandList" },
+        "e2e": { "$ref": "#/definitions/commandList" }
+      }
+    }
+  },
+  "properties": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$" },
+    "name": { "$ref": "#/definitions/nullableString" },
+    "description": { "$ref": "#/definitions/nullableString" },
+    "agility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseUrlEnv": { "$ref": "#/definitions/envName" },
+        "tokenSecret": { "$ref": "#/definitions/secretName" },
+        "boardId": { "$ref": "#/definitions/nullableString" },
+        "boardIds": { "$ref": "#/definitions/stringList" },
+        "teamNames": { "$ref": "#/definitions/stringList" },
+        "defectScope": {
+          "description": "Agility scope (project) OID that new defects are created in, e.g. Scope:1234.",
+          "$ref": "#/definitions/nullableString"
+        },
+        "fields": {
+          "description": "Instance-specific attribute names. Custom fields differ per Agility instance and must be confirmed during onboarding.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "acceptanceCriteria": { "$ref": "#/definitions/nullableString" },
+            "releaseBranch": { "$ref": "#/definitions/nullableString" }
+          }
+        },
+        "releaseBranchPattern": {
+          "description": "Regular expression with one capture group that extracts the release branch from story text when no dedicated field exists.",
+          "$ref": "#/definitions/nullableString"
+        },
+        "browserFallback": { "type": "boolean", "default": true }
+      }
+    },
+    "bitbucket": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flavor": { "enum": ["server", "cloud", null] },
+        "baseUrlEnv": { "$ref": "#/definitions/envName" },
+        "tokenSecret": { "$ref": "#/definitions/secretName" },
+        "projectKey": { "$ref": "#/definitions/nullableString" },
+        "allowedHosts": {
+          "description": "Hosts repositories may be cloned from. A URL on any other host is refused.",
+          "$ref": "#/definitions/stringList"
+        }
+      }
+    },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "localPath"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$" },
+          "urlEnv": { "$ref": "#/definitions/envName" },
+          "localPath": { "type": "string", "minLength": 1 },
+          "slug": { "$ref": "#/definitions/nullableString" },
+          "branchPolicy": { "enum": ["story-release-branch-required", "default-release-branch-allowed"] },
+          "defaultReleaseBranch": { "$ref": "#/definitions/nullableString" },
+          "type": { "enum": ["java-spring", "ui", "other", null] },
+          "schemas": { "$ref": "#/definitions/stringList" },
+          "tests": { "$ref": "#/definitions/testCommands" }
+        }
+      }
+    },
+    "services": {
+      "description": "Service ownership: maps a runtime service name to the repository and schemas behind it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "aliases": { "$ref": "#/definitions/stringList" },
+          "repository": { "$ref": "#/definitions/nullableString" },
+          "owners": { "$ref": "#/definitions/stringList" },
+          "schemas": { "$ref": "#/definitions/stringList" },
+          "dynatraceEntityId": { "$ref": "#/definitions/nullableString" }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "engine": { "enum": ["db2", null] },
+        "connectionProfile": { "$ref": "#/definitions/nullableString" },
+        "schemas": { "$ref": "#/definitions/stringList" },
+        "writeAccess": { "type": "boolean", "default": false },
+        "maxRows": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "redactColumns": { "$ref": "#/definitions/stringList" }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "splunkProfile": { "$ref": "#/definitions/nullableString" },
+        "splunkBaseUrlEnv": { "$ref": "#/definitions/envName" },
+        "splunkTokenSecret": { "$ref": "#/definitions/secretName" },
+        "dynatraceProfile": { "$ref": "#/definitions/nullableString" },
+        "dynatraceBaseUrlEnv": { "$ref": "#/definitions/envName" },
+        "dynatraceTokenSecret": { "$ref": "#/definitions/secretName" }
+      }
+    },
+    "browser": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preferred": { "enum": ["msedge", "chromium"] },
+        "chromiumFallback": { "enum": ["allowed-only-if-approved", "approved", "prohibited"] },
+        "allowedHosts": { "$ref": "#/definitions/stringList" }
+      }
+    },
+    "branching": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "featurePattern": {
+          "description": "Tokens: {storyId} and {slug}.",
+          "type": "string",
+          "pattern": "\\{storyId\\}"
+        },
+        "protected": { "$ref": "#/definitions/stringList" }
+      }
+    },
+    "tech": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "null"] }
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": { "enum": ["compile", "static", "unit", "integration", "contract", "regression", "e2e"] }
+        },
+        "timeoutMinutes": { "type": "integer", "minimum": 1, "maximum": 240 }
+      }
+    },
+    "guidelines": { "$ref": "#/definitions/stringList" },
+    "securityRestrictions": { "$ref": "#/definitions/stringList" },
+    "learning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "persistence": { "const": "explicit-approval-only" } }
+    },
+    "policies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "createPR": { "$ref": "#/definitions/policy" },
+        "createDefect": { "$ref": "#/definitions/policy" },
+        "updateTicket": { "$ref": "#/definitions/policy" },
+        "schemaChanges": { "enum": ["approval-required", "prohibited"] },
+        "dbWrites": { "enum": ["approval-required", "prohibited"] },
+        "productionChanges": { "const": "prohibited" }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "schedule": { "$ref": "#/definitions/nullableString" },
+        "environment": { "$ref": "#/definitions/nullableString" },
+        "services": { "$ref": "#/definitions/stringList" },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxWindowMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+            "maxEventsPerQuery": { "type": "integer", "minimum": 1, "maximum": 50000 },
+            "minSecondsBetweenQueries": { "type": "number", "minimum": 0 }
+          }
+        },
+        "splunk": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "profile": { "$ref": "#/definitions/nullableString" },
+            "indexes": { "$ref": "#/definitions/stringList" },
+            "sourcetypes": { "$ref": "#/definitions/stringList" },
+            "savedSearches": { "$ref": "#/definitions/stringList" },
+            "errorFilter": { "$ref": "#/definitions/nullableString" }
+          }
+        },
+        "dynatrace": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "profile": { "$ref": "#/definitions/nullableString" },
+            "entitySelectors": { "$ref": "#/definitions/stringList" },
+            "metricSelectors": { "$ref": "#/definitions/stringList" }
+          }
+        },
+        "correlation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "traceIdFields": { "$ref": "#/definitions/stringList" },
+            "spanIdFields": { "$ref": "#/definitions/stringList" },
+            "requestIdFields": { "$ref": "#/definitions/stringList" },
+            "serviceNameFields": { "$ref": "#/definitions/stringList" },
+            "windowSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 }
+          }
+        },
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "errorCount": { "type": ["number", "null"], "minimum": 0 },
+            "errorRatePercent": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "p95LatencyMs": { "type": ["number", "null"], "minimum": 0 }
+          }
+        },
+        "incidentPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dedupeWindowMinutes": { "type": "integer", "minimum": 1, "maximum": 10080 },
+            "createTicket": { "$ref": "#/definitions/policy" },
+            "autoStartDevelopment": { "type": "boolean", "default": false },
+            "productionRemediation": { "const": "prohibited" }
+          }
+        }
+      }
+    }
+  }
+}

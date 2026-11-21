@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Agent, skill and hook discovery check
+        run: node scripts/autodev.mjs discovery verify --strict
+      - name: End-to-end dry run against local mocks
+        run: node scripts/autodev.mjs demo e2e
+
+  powershell:
+    name: PowerShell scripts (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Parse every script with Windows PowerShell 5.1 and PowerShell 7
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path scripts -Recurse -Filter *.ps1
+          $failed = $false
+          foreach ($file in $files) {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { $failed = $true; $errors | ForEach-Object { Write-Host "::error file=$($file.FullName)::$($_.Message)" } }
+            powershell.exe -NoProfile -NonInteractive -Command "`$t=`$null;`$e=`$null;[System.Management.Automation.Language.Parser]::ParseFile('$($file.FullName)',[ref]`$t,[ref]`$e)|Out-Null;if(`$e.Count -gt 0){`$e|ForEach-Object{Write-Host ('5.1: ' + `$_.Message)};exit 1}"
+            if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "::error file=$($file.FullName)::does not parse in Windows PowerShell 5.1" }
+          }
+          if ($failed) { exit 1 }
+          Write-Host "Parsed $($files.Count) scripts in both PowerShell versions."
+      - name: PSScriptAnalyzer (errors fail the build)
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -ErrorAction Stop
+          $results = Invoke-ScriptAnalyzer -Path scripts -Recurse -Severity Error,Warning
+          $results | Format-Table -AutoSize RuleName, Severity, ScriptName, Line, Message
+          if ($results | Where-Object Severity -eq 'Error') { exit 1 }
+      - name: Bootstrap prerequisite check
+        shell: pwsh
+        run: ./scripts/Bootstrap.ps1 -CheckOnly
+        continue-on-error: true
+      - name: Credential store round trip (Windows Credential Manager)
+        shell: pwsh
+        run: |
+          # Proves the P/Invoke read path used by src/core/secrets.js on a real Windows host.
+          $target = 'autodev/CI_ROUNDTRIP_TEST'
+          cmdkey /generic:$target /user:autodev /pass:ci-roundtrip-value-123 | Out-Null
+          try {
+            $value = powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/ps/Get-AutoDevCredential.ps1 -Target $target
+            if ($LASTEXITCODE -ne 0 -or $value -ne 'ci-roundtrip-value-123') { Write-Host "::error::credential read failed (exit $LASTEXITCODE)"; exit 1 }
+            $viaNode = node -e "import('./src/core/secrets.js').then(async (m) => { const v = await m.getSecret('CI_ROUNDTRIP_TEST', { env: {} }); process.stdout.write(v === 'ci-roundtrip-value-123' ? 'ok' : 'mismatch'); })"
+            if ($viaNode -ne 'ok') { Write-Host "::error::secrets.js could not read the credential ($viaNode)"; exit 1 }
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/ps/Get-AutoDevCredential.ps1 -Target 'autodev/DOES_NOT_EXIST'
+            if ($LASTEXITCODE -ne 1) { Write-Host "::error::missing credential should exit 1, got $LASTEXITCODE"; exit 1 }
+            Write-Host 'Credential Manager round trip verified.'
+          } finally {
+            cmdkey /delete:$target | Out-Null
+          }

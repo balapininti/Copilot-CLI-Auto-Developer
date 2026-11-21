@@ -1,0 +1,38 @@
+{
+  "name": "copilot-cli-auto-developer",
+  "version": "0.1.0",
+  "description": "Windows-first, locally executed, MCP-free automation framework for GitHub Copilot CLI: ticket-to-PR and monitoring-to-defect workflows with approval gates enforced in code.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=22.12"
+  },
+  "bin": {
+    "autodev": "scripts/autodev.mjs"
+  },
+  "scripts": {
+    "autodev": "node scripts/autodev.mjs",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:coverage": "node --test --experimental-test-coverage \"tests/**/*.test.js\"",
+    "lint": "eslint .",
+    "typecheck": "tsc -p jsconfig.json",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "demo": "node scripts/autodev.mjs demo e2e",
+    "verify:discovery": "node scripts/autodev.mjs discovery verify"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "yaml": "^2.9.1"
+  },
+  "optionalDependencies": {
+    "playwright-core": "^1.65.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.15.0",
+    "globals": "^16.0.0",
+    "typescript": "^5.9.0"
+  }
+}

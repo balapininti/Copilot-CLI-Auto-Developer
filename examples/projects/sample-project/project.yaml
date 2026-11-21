@@ -1,0 +1,141 @@
+# Example project manifest. Copy the folder to <workspace>\projects\<your-id>\,
+# or generate one with:  autodev onboard-project
+#
+# A manifest holds NAMES of environment variables and credential entries, never
+# their values. A manifest containing something that looks like a secret is
+# refused. null means "not answered yet"; `autodev project validate` lists what
+# is still missing. Nothing here is real: every value is a placeholder.
+
+id: sample-project
+name: Sample project
+
+agility:
+  baseUrlEnv: AGILITY_BASE_URL          # environment variable holding the Agility URL
+  tokenSecret: AGILITY_TOKEN            # env var, or Credential Manager entry autodev/AGILITY_TOKEN
+  boardId: BOARD_ID                     # placeholder: replace with the real team room id
+  teamNames: []
+  defectScope: null                     # e.g. "Scope:1234"; where new defects are created
+  fields:
+    acceptanceCriteria: null            # the custom attribute name on your instance
+    releaseBranch: null                 # attribute holding the release branch, if there is one
+  releaseBranchPattern: null            # or a regex with one capture group, e.g. "Release branch:\\s*(\\S+)"
+  browserFallback: true                 # allow the signed-in Edge session when no token is stored
+
+bitbucket:
+  flavor: null                          # server | cloud
+  baseUrlEnv: BITBUCKET_BASE_URL
+  tokenSecret: BITBUCKET_TOKEN
+  projectKey: null
+  allowedHosts: []                      # hosts repositories may be cloned from
+
+repositories:
+  - name: service-api
+    urlEnv: SERVICE_API_REPO_URL
+    localPath: repos/service-api
+    branchPolicy: story-release-branch-required
+    type: java-spring
+    schemas: [APP]
+    tests:                              # commands as argument arrays, run without a shell
+      compile: [["mvnw.cmd", "-B", "-q", "-DskipTests", "compile"]]
+      unit: [["mvnw.cmd", "-B", "test"]]
+      integration: [["mvnw.cmd", "-B", "verify", "-Pintegration"]]
+  - name: web-ui
+    urlEnv: WEB_UI_REPO_URL
+    localPath: repos/web-ui
+    type: ui
+
+services:                               # runtime service -> repository and schemas
+  - name: orders-service
+    aliases: [orders]
+    repository: service-api
+    owners: []
+    schemas: [APP]
+    dynatraceEntityId: null
+
+database:
+  engine: db2
+  connectionProfile: db2-dev-readonly   # secret DB2_CONN_DB2_DEV_READONLY holds the connection string
+  schemas: [APP, COMMON]
+  writeAccess: false
+  maxRows: 200
+  timeoutSeconds: 30
+
+observability:
+  splunkProfile: app-dev
+  splunkBaseUrlEnv: SPLUNK_BASE_URL
+  splunkTokenSecret: SPLUNK_TOKEN
+  dynatraceProfile: app-dev
+  dynatraceBaseUrlEnv: DYNATRACE_BASE_URL
+  dynatraceTokenSecret: DYNATRACE_TOKEN
+
+browser:
+  preferred: msedge
+  chromiumFallback: allowed-only-if-approved   # set to "approved" once your organization allows Chromium
+  allowedHosts: []                              # add your identity provider hosts for SSO
+
+branching:
+  featurePattern: "feature/{storyId}-{slug}"
+  protected: [main, master, develop, "release/*"]
+
+tech:
+  java: null
+  springBoot: null
+  ui: null
+
+tests:
+  required: [compile, unit]
+  timeoutMinutes: 30
+
+guidelines:
+  - guidelines/architecture.md
+  - guidelines/coding-standards.md
+  - guidelines/development-workflow.md
+  - guidelines/testing-standards.md
+
+securityRestrictions: []
+
+learning:
+  persistence: explicit-approval-only
+
+policies:
+  createPR: approval-required
+  createDefect: approval-required
+  updateTicket: approval-required
+  schemaChanges: approval-required
+  dbWrites: prohibited
+  productionChanges: prohibited
+
+monitoring:
+  enabled: false
+  schedule: "*/15 * * * *"   # illustrative; the interval is set when the scheduled task is registered
+  environment: nonprod
+  services: []
+  limits:
+    maxWindowMinutes: 60
+    maxEventsPerQuery: 500
+    minSecondsBetweenQueries: 1
+  splunk:
+    profile: app-nonprod
+    indexes: []
+    sourcetypes: []
+    savedSearches: []
+    errorFilter: null
+  dynatrace:
+    profile: app-nonprod
+    entitySelectors: []
+    metricSelectors: []
+  correlation:
+    traceIdFields: [trace_id, traceId]
+    spanIdFields: [span_id, spanId]
+    requestIdFields: [request_id, requestId]
+    serviceNameFields: [service, application]
+    windowSeconds: 300
+  thresholds:               # placeholders; take real values from the owning team. null never fires.
+    errorCount: null
+    errorRatePercent: null
+    p95LatencyMs: null
+  incidentPolicy:
+    dedupeWindowMinutes: 60
+    createTicket: approval-required
+    autoStartDevelopment: false
+    productionRemediation: prohibited
