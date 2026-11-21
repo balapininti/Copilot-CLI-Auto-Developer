@@ -7,10 +7,14 @@ import * as dynatrace from '../../adapters/dynatrace/client.js';
 import * as splunk from '../../adapters/splunk/client.js';
 import { appendAudit } from '../../core/audit.js';
 import { createTransport } from '../../core/auth.js';
+import path from 'node:path';
+
 import { AutoDevError, ErrorCodes } from '../../core/errors.js';
 import { loadManifest } from '../../core/manifest.js';
 import { getActiveProject, listProjectIds } from '../../core/project-context.js';
 import { redact, redactString } from '../../core/redact.js';
+import { withLock } from '../../core/state-store.js';
+import { stateDirFor } from '../../core/workspace.js';
 import { startMockServer, demoScenario } from '../../mocks/server.js';
 import { buildDefectDraft } from '../../monitoring/defect-draft.js';
 import { authorizeStart, claimNext, completeTask, listTasks } from '../../monitoring/handoff.js';
@@ -57,6 +61,20 @@ function incidentOf(ctx) {
   const id = ctx.flags.incident ?? ctx.args[0];
   if (!id) throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'Give the incident id (--incident INC-...).');
   return { projectId, manifest, incident: getIncident(ctx.workspace, projectId, id) };
+}
+
+/**
+ * Run a command that changes an incident while holding the same lock as the
+ * monitoring worker, so a pass in progress cannot overwrite the change (or the
+ * other way round). Waits briefly for a running pass to finish.
+ * @template T
+ * @param {import('../main.js').CommandContext} ctx
+ * @param {() => Promise<T> | T} fn
+ * @returns {Promise<T>}
+ */
+function withIncidentLock(ctx, fn) {
+  const lockFile = path.join(stateDirFor(ctx.workspace, 'monitor', ctx.project().projectId), 'worker.lock');
+  return withLock(lockFile, fn, { waitMs: 30_000, staleMs: 30 * 60_000 });
 }
 
 /** @type {Record<string, import('../main.js').Command>} */
@@ -115,9 +133,18 @@ export const monitoringCommands = {
         if (getActiveProject(ctx.workspace, ctx.env).projectId) {
           throw new AutoDevError(ErrorCodes.PROJECT_SCOPE_VIOLATION, '--all cannot be used inside a session bound to one project.');
         }
-        return { passes: await runMany(ctx.workspace, listProjectIds(ctx.workspace), runProject) };
+        const passes = await runMany(ctx.workspace, listProjectIds(ctx.workspace), runProject);
+        if (passes.some((pass) => pass.status === 'failed')) {
+          throw new AutoDevError(ErrorCodes.UPSTREAM_ERROR, 'One or more monitoring passes failed.', { details: { passes }, retryable: true });
+        }
+        return { passes };
       }
-      return runProject(ctx.project().projectId);
+      const pass = await runProject(ctx.project().projectId);
+      if (pass.status === 'failed') {
+        // Non-zero exit, so the scheduled task's last result shows the failure.
+        throw new AutoDevError(ErrorCodes.UPSTREAM_ERROR, `The monitoring pass failed: ${pass.error?.code ?? 'unknown'}.`, { details: pass, retryable: true });
+      }
+      return pass;
     },
   },
   'monitor status': {
@@ -179,7 +206,8 @@ export const monitoringCommands = {
   'incident classify': {
     summary: 'Record an investigator\'s finding: a hypothesis, or a root cause verified with evidence.',
     usage: 'incident classify --incident <INC-...> --classification verified-root-cause|evidence-backed-hypothesis|insufficient-evidence --statement "..." [--evidence "..."]...',
-    run: async (ctx) => {
+    run: (ctx) =>
+      withIncidentLock(ctx, async () => {
       const { projectId, incident } = incidentOf(ctx);
       const classification = ctx.need('classification');
       const allowed = ['verified-root-cause', 'evidence-backed-hypothesis', 'insufficient-evidence'];
@@ -204,12 +232,13 @@ export const monitoringCommands = {
       saveIncident(ctx.workspace, incident);
       await appendAudit(ctx.workspace, projectId, { action: 'incident.classified', outcome: 'success', details: { incidentId: incident.incidentId, classification, evidenceCount: evidence.length } });
       return { incidentId: incident.incidentId, classification, hypotheses: incident.hypotheses };
-    },
+      }),
   },
   'incident link-pr': {
     summary: 'Link pull request(s) to an incident once development has produced them.',
     usage: 'incident link-pr --incident <INC-...> --pr <url> [--pr <url>]',
-    run: (ctx) => {
+    run: (ctx) =>
+      withIncidentLock(ctx, () => {
       const { incident } = incidentOf(ctx);
       const prs = ctx.flags.pr ?? [];
       if (prs.length === 0) throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'Give at least one --pr <url>.');
@@ -217,17 +246,18 @@ export const monitoringCommands = {
       if (incident.status === Status.DEVELOPMENT_STARTED) applyEvent(incident, 'pr-created', { pullRequests: prs });
       saveIncident(ctx.workspace, incident);
       return { incidentId: incident.incidentId, status: incident.status, pullRequests: incident.links.pullRequests };
-    },
+      }),
   },
   'incident close': {
     summary: 'Close an incident with a reason (for example a false positive).',
     usage: 'incident close --incident <INC-...> --reason "..."',
-    run: (ctx) => {
+    run: (ctx) =>
+      withIncidentLock(ctx, () => {
       const { incident } = incidentOf(ctx);
       applyEvent(incident, 'closed', { reason: redactString(ctx.need('reason'), { pii: true }) });
       saveIncident(ctx.workspace, incident);
       return { incidentId: incident.incidentId, status: incident.status };
-    },
+      }),
   },
 
   'handoff list': {
@@ -244,7 +274,8 @@ export const monitoringCommands = {
   },
   'handoff next': {
     summary: 'Claim the next defect that is cleared for development. Returns null when none is ready.',
-    run: async (ctx) => {
+    run: (ctx) =>
+      withIncidentLock(ctx, async () => {
       const { projectId } = ctx.project();
       if (ctx.dryRun) return { dryRun: true, ready: listTasks(ctx.workspace, projectId).filter((task) => task.status === 'ready') };
       const task = await claimNext(ctx.workspace, projectId);
@@ -261,12 +292,13 @@ export const monitoringCommands = {
         task,
         instructions: `Re-read defect ${task.defectId} from Agility (autodev agility story ${task.defectId}) and the project context before changing anything. Do not rely on the incident summary alone.`,
       };
-    },
+      }),
   },
   'handoff complete': {
     summary: 'Mark a claimed defect as done (with PR links) or blocked (with a reason).',
     usage: 'handoff complete --task-id <task-...> --outcome done|blocked [--pr <url>]... [--reason "..."]',
-    run: async (ctx) => {
+    run: (ctx) =>
+      withIncidentLock(ctx, async () => {
       const { projectId } = ctx.project();
       const outcome = ctx.need('outcome');
       if (outcome !== 'done' && outcome !== 'blocked') throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, '--outcome must be done or blocked.');
@@ -278,7 +310,7 @@ export const monitoringCommands = {
         saveIncident(ctx.workspace, incident);
       }
       return task;
-    },
+      }),
   },
 
   'learn propose': {

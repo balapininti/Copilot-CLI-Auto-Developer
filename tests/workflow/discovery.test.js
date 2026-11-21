@@ -23,6 +23,7 @@ function expectedCopies() {
       if (entry.isFile()) copies.push(path.join('skills', skill.name, path.relative(dir, path.join(entry.parentPath, entry.name))));
     }
   }
+  copies.push(path.join('hooks', 'autodev.json')); // the user-level preToolUse hook
   return copies.sort();
 }
 

@@ -91,6 +91,9 @@ export function assertIdentifier(name, label = 'identifier') {
   return name.toUpperCase();
 }
 
+/** Scalar functions whose argument syntax contains the word FROM. */
+const FROM_FUNCTIONS = new Set(['EXTRACT', 'TRIM', 'SUBSTRING', 'OVERLAY', 'POSITION', 'LTRIM', 'RTRIM']);
+
 const IDENT_TOKEN = /^[A-Z_#@$][A-Z0-9_#@$]*$/;
 
 /** Keywords that end a FROM clause at the same parenthesis depth. */
@@ -105,7 +108,7 @@ const FROM_END = new Set(['WHERE', 'GROUP', 'HAVING', 'ORDER', 'FETCH', 'UNION',
  * FROM-clause level are refused, because they would introduce a table without
  * a keyword in front of it.
  * @param {string} sql
- * @param {{ allowedSchemas: string[], params?: unknown[] }} options
+ * @param {{ allowedSchemas: string[], params?: unknown[], allowCatalog?: boolean }} options `allowCatalog` is for the built-in introspection helpers only
  * @returns {{ sql: string, schemas: string[], paramCount: number }}
  */
 export function validateSelect(sql, options) {
@@ -125,7 +128,9 @@ export function validateSelect(sql, options) {
   if (/\bINTO\b/.test(upper)) reject('SELECT INTO is not allowed');
   if (/\b(NEXT|PREVIOUS)\s+VALUE\s+FOR\b|\b(NEXTVAL|PREVVAL)\b/.test(upper)) reject('sequence expressions are not allowed (NEXT VALUE advances a sequence)');
 
-  const allowed = new Set([...options.allowedSchemas, ...CATALOG_SCHEMAS].map((schema) => schema.toUpperCase()));
+  // Catalog views can expose other schemas' definitions and sampled data, so
+  // free-form queries may read the project's schemas only.
+  const allowed = new Set([...options.allowedSchemas, ...(options.allowCatalog ? CATALOG_SCHEMAS : [])].map((schema) => schema.toUpperCase()));
   const cteNames = new Set([...upper.matchAll(/(?:\bWITH|,)\s*([A-Z_#@$][A-Z0-9_#@$]*)\s*(?:\([^()]*\))?\s*\bAS\s*\(/g)].map((match) => match[1]));
   const tokens = upper.match(/[A-Z_#@$][A-Z0-9_#@$]*|\d+(?:\.\d+)?|''|[(),.*?]|[^\sA-Z0-9_#@$(),.*?']+/g) ?? [];
   const isIdent = (/** @type {string | undefined} */ token) => typeof token === 'string' && IDENT_TOKEN.test(token);
@@ -136,6 +141,8 @@ export function validateSelect(sql, options) {
   const qualifiers = new Set(cteNames);
   /** One entry per open parenthesis: is a FROM clause active at this depth? */
   const fromActive = [false];
+  /** Parallel to fromActive: is this parenthesis the argument list of a function that uses FROM as syntax? */
+  const functionParen = [false];
   let found = 0;
 
   /**
@@ -195,15 +202,20 @@ export function validateSelect(sql, options) {
   for (let i = 0; i < tokens.length; ) {
     const token = tokens[i];
     const depth = fromActive.length - 1;
-    if (token === 'FROM' || token === 'JOIN') {
+    if ((token === 'FROM' || token === 'JOIN') && !(token === 'FROM' && functionParen[depth])) {
       if (token === 'FROM') fromActive[depth] = true;
       i = readTable(i + 1);
+      // readTable may have opened a parenthesis (subquery or parenthesised join).
+      while (functionParen.length < fromActive.length) functionParen.push(false);
     } else if (token === '(') {
       fromActive.push(false);
+      // EXTRACT(YEAR FROM x), TRIM(BOTH ' ' FROM x), SUBSTRING(x FROM 1): not a table FROM.
+      functionParen.push(FROM_FUNCTIONS.has(tokens[i - 1]));
       i += 1;
     } else if (token === ')') {
       if (fromActive.length === 1) reject('unbalanced parentheses');
       fromActive.pop();
+      functionParen.pop();
       // A derived table or parenthesised join may carry an alias.
       i = fromActive[fromActive.length - 1] ? readAlias(i + 1) : i + 1;
     } else if (token === ',' && fromActive[depth]) {
@@ -223,6 +235,10 @@ export function validateSelect(sql, options) {
     if (tokens[i - 1] === '.') continue; // second part of SCHEMA.TABLE.COLUMN
     if (!allowed.has(tokens[i]) && !qualifiers.has(tokens[i])) {
       reject(`"${tokens[i]}" is neither a schema mapped to this project nor an alias defined in the query`);
+    }
+    // X.F(...) calls a function in schema X; an alias cannot stand in for a schema there.
+    if (tokens[i + 3] === '(' && !allowed.has(tokens[i])) {
+      reject(`function "${tokens[i]}.${tokens[i + 2]}" is not in a schema mapped to this project`);
     }
   }
 

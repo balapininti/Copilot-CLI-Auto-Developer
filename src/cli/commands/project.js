@@ -3,6 +3,7 @@
  * doctor, discovery, onboarding, project, session, approvals, audit.
  */
 
+import { randomInt } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import readline from 'node:readline/promises';
@@ -47,9 +48,7 @@ function requireHuman(ctx) {
  * @param {import('../../core/approvals.js').Approval} approval
  */
 function publicView(approval) {
-  // The confirmation code is shown only on the reviewer's own screen.
-  const { challenge: _challenge, ...rest } = approval;
-  return rest;
+  return approval;
 }
 
 /**
@@ -252,15 +251,18 @@ export const projectCommands = {
         show(String(typeof value === 'string' ? value : JSON.stringify(value, null, 2)).split('\n').map((line) => `    ${line}`).join('\n'));
       }
       show('------------------------------------------------------------------------');
+      // A fresh code for this review only. It is never stored, so it cannot be
+      // read from the approval record or derived from the payload.
+      const challenge = Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('');
       const prompt = readline.createInterface({ input: process.stdin, output: process.stderr });
       let reply;
       try {
-        reply = (await prompt.question(`\nType ${approval.challenge} to APPROVE, "deny" to deny, or anything else to leave it pending: `)).trim();
+        reply = (await prompt.question(`\nType ${challenge} to APPROVE, "deny" to deny, or anything else to leave it pending: `)).trim();
       } finally {
         prompt.close();
       }
       const decidedBy = os.userInfo().username;
-      if (reply.toUpperCase() === approval.challenge) {
+      if (reply.toUpperCase() === challenge) {
         return publicView(await decideApproval(ctx.workspace, { projectId, id: approval.id, decision: 'approved', decidedBy }));
       }
       if (reply.toLowerCase() === 'deny') {

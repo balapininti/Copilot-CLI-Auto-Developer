@@ -88,6 +88,27 @@ function writeEvidence(ctx, projectId, storyId, name, content) {
   return file;
 }
 
+/**
+ * A session works on one project, so a ticket it reads or writes must belong
+ * to one of that project's teams. Where the project lists no team names this
+ * cannot be checked, and the result says so.
+ * @param {Record<string, any>} manifest
+ * @param {{ id: string, team: string | null }} story
+ * @returns {string} how the check went
+ */
+function assertStoryInProject(manifest, story) {
+  const teams = (manifest.agility.teamNames ?? []).map((/** @type {string} */ name) => name.toLowerCase());
+  if (teams.length === 0) return 'not checked: agility.teamNames is empty in project.yaml';
+  if (!story.team || !teams.includes(String(story.team).toLowerCase())) {
+    throw new AutoDevError(
+      ErrorCodes.PROJECT_SCOPE_VIOLATION,
+      `${story.id} belongs to team "${story.team ?? 'none'}", which is not one of this project's teams. It is outside this session's project.`,
+      { details: { workitem: story.id, team: story.team ?? null, projectTeams: manifest.agility.teamNames } },
+    );
+  }
+  return 'team matches project';
+}
+
 /** @type {Record<string, import('../main.js').Command>} */
 export const integrationCommands = {
   'auth status': {
@@ -147,6 +168,7 @@ export const integrationCommands = {
       withTransport(ctx, 'agility', async (transport, { projectId, manifest }) => {
         if (!ctx.args[0]) throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'Usage: autodev agility story <S-01234>');
         const story = await agility.readStory(transport, manifest, ctx.args[0]);
+        const projectCheck = assertStoryInProject(manifest, story);
         await updateRun(ctx.workspace, projectId, story.id, (run) => {
           run.story = { id: story.id, oid: story.oid, title: story.title, url: story.url, releaseBranch: story.releaseBranch, releaseBranchSource: story.releaseBranchSource, dependencies: story.dependencies, fetchedAt: story.fetchedAt };
           addHistory(run, 'story-read', { via: story.fetchedVia });
@@ -155,7 +177,8 @@ export const integrationCommands = {
         const gaps = [];
         if (!story.releaseBranch) gaps.push(`Release branch: ${story.releaseBranchSource}. Ask the user which release branch to use.`);
         if (!story.acceptanceCriteria) gaps.push(`Acceptance criteria: ${story.acceptanceCriteriaSource === 'not configured' ? 'the field is not configured in project.yaml' : 'empty on the story'}.`);
-        return { ...story, gaps };
+        if (projectCheck.startsWith('not checked')) gaps.push(`Project membership ${projectCheck}, so it could not be confirmed that this ticket belongs to the session's project.`);
+        return { ...story, projectCheck, gaps };
       }),
   },
   'agility comment': {
@@ -166,6 +189,7 @@ export const integrationCommands = {
         if (!ctx.args[0]) throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'Usage: autodev agility comment <S-01234> --text "..."');
         const text = redactString(ctx.need('text'), { pii: true });
         const story = await agility.readStory(transport, manifest, ctx.args[0]);
+        assertStoryInProject(manifest, story);
         const payload = { workitem: story.id, oid: story.oid, text };
         const gate = await enforcePolicy(ctx.workspace, {
           projectId, action: Actions.UPDATE_TICKET, policy: manifest.policies.updateTicket,
@@ -185,6 +209,7 @@ export const integrationCommands = {
         if (!ctx.args[0]) throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'Usage: autodev agility status <S-01234> --status "<name>"');
         const statusName = ctx.need('status');
         const story = await agility.readStory(transport, manifest, ctx.args[0]);
+        assertStoryInProject(manifest, story);
         const payload = { workitem: story.id, oid: story.oid, status: statusName };
         const gate = await enforcePolicy(ctx.workspace, {
           projectId, action: Actions.UPDATE_TICKET, policy: manifest.policies.updateTicket,
@@ -217,8 +242,15 @@ export const integrationCommands = {
       }
       const url = git.approvedRepoUrl(manifest, repo, ctx.env);
       const clone = await git.ensureClone({ repoPath, url, name: repo.name, dryRun: ctx.dryRun });
-      const base = ctx.flags['release-branch']
-        ? { branch: git.assertBranchName(ctx.flags['release-branch'], 'release branch'), source: 'named explicitly on the command line' }
+      const named = ctx.flags['release-branch'];
+      if (named && run.story.releaseBranch && named !== run.story.releaseBranch) {
+        throw new AutoDevError(
+          ErrorCodes.POLICY_PROHIBITED,
+          `Story ${storyId} names release branch "${run.story.releaseBranch}"; --release-branch cannot replace it with "${named}". If the story is wrong, it is corrected in Agility.`,
+        );
+      }
+      const base = named && !run.story.releaseBranch
+        ? { branch: git.assertBranchName(named, 'release branch'), source: 'named by the user on the command line (the story names none)' }
         : git.resolveBaseBranch(repo, run.story);
       if (ctx.dryRun && clone.action === 'would-clone') {
         return { dryRun: true, clone, baseBranch: base, note: 'The release branch can be verified only after cloning.' };
@@ -257,7 +289,7 @@ export const integrationCommands = {
       const base = run.repos[repo.name]?.baseBranch;
       if (!base) throw new AutoDevError(ErrorCodes.GATE_FAILED, 'No release branch recorded for this repository and story. Run: autodev repo prepare');
       const diff = await git.diffAgainstBase(repoPath, base);
-      return { ...diff, patch: redactString(diff.patch.slice(0, MAX_PATCH_CHARS)), patchTruncated: diff.patch.length > MAX_PATCH_CHARS };
+      return { ...diff, patch: redactString(diff.patch.slice(0, MAX_PATCH_CHARS)), patchTruncated: diff.patchIncomplete || diff.patch.length > MAX_PATCH_CHARS };
     },
   },
   'repo commit': {
@@ -330,10 +362,16 @@ export const integrationCommands = {
     run: async (ctx) => {
       const { projectId, manifest, repo, repoPath } = repoOf(ctx);
       const storyId = storyOf(ctx);
+      const treeBefore = await git.worktreeTreeId(repoPath);
       const result = await runStages({
         repoPath, repo, stages: ctx.flags.stage, required: manifest.tests.required, timeoutMinutes: manifest.tests.timeoutMinutes,
       });
       const treeId = await git.worktreeTreeId(repoPath);
+      if (treeId !== treeBefore) {
+        // Source files changed while the stages ran, so it is not known which code they tested.
+        result.passed = false;
+        result.blockers.push({ stage: 'all', status: 'invalid', reason: 'Files changed while the tests were running (or the build writes into tracked or unignored paths). Run again without editing; add build output to .gitignore.' });
+      }
       const evidenceFile = writeEvidence(ctx, projectId, storyId, `${repo.name}-tests`, { storyId, treeId, ...result });
       await recordGate(ctx.workspace, {
         projectId, storyId, repo: repo.name, gate: 'tests', treeId, passed: result.passed,
@@ -356,7 +394,8 @@ export const integrationCommands = {
       const diff = await git.diffAgainstBase(repoPath, base);
       const files = parseDiff(diff.patch);
       let schemaChangeAuthorized = false;
-      const schemaFiles = reviewDiff(files).findings.filter((finding) => finding.rule === 'schema-change').map((finding) => finding.file);
+      const coverage = { allPaths: diff.files.map((file) => file.path), incomplete: diff.patchIncomplete };
+      const schemaFiles = reviewDiff(files, coverage).findings.filter((finding) => finding.rule === 'schema-change').map((finding) => finding.file);
       if (schemaFiles.length > 0 && ctx.flags['authorize-schema-change']) {
         const gate = await enforcePolicy(ctx.workspace, {
           projectId, action: Actions.SCHEMA_CHANGE, policy: manifest.policies.schemaChanges,
@@ -365,7 +404,7 @@ export const integrationCommands = {
         });
         schemaChangeAuthorized = gate.proceed;
       }
-      const review = reviewDiff(files, { schemaChangeAuthorized });
+      const review = reviewDiff(files, { ...coverage, schemaChangeAuthorized });
       const treeId = await git.worktreeTreeId(repoPath);
       await recordGate(ctx.workspace, {
         projectId, storyId, repo: repo.name, gate: 'automated-review', treeId, passed: review.passed,
@@ -451,11 +490,34 @@ export const integrationCommands = {
         throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'The steps file must be a JSON array of 1 to 200 steps.');
       }
       const serviceHosts = Object.values(SERVICES).flatMap((spec) => hostOf(envValue(spec.baseUrlEnv(manifest), ctx.env)));
-      const allowedHosts = [...new Set([...serviceHosts, ...(manifest.browser.allowedHosts ?? [])])];
+      // Clicking and typing act with the user's signed-in session. On the
+      // ticketing, source-control and telemetry systems that would be a write
+      // around the approval gates, so interactive steps are limited to the
+      // application under test; those systems are read-only here.
+      const interactive = steps.some((/** @type {any} */ step) => ['click', 'fill', 'press'].includes(step?.action));
+      const appHosts = (manifest.browser.allowedHosts ?? []).filter((/** @type {string} */ host) => !serviceHosts.includes(host.toLowerCase()));
+      if (interactive) {
+        for (const step of steps) {
+          if (step?.action !== 'goto') continue;
+          let host = '';
+          try {
+            host = new URL(String(step.url)).hostname.toLowerCase();
+          } catch {
+            // reported as an invalid step when it runs
+          }
+          if (serviceHosts.includes(host)) {
+            throw new AutoDevError(
+              ErrorCodes.POLICY_PROHIBITED,
+              `Steps that click, type or press keys cannot be run against ${host}. Use the autodev commands for that system, which apply the approval policy; the browser may only read it.`,
+            );
+          }
+        }
+      }
+      const allowedHosts = interactive ? appHosts : [...new Set([...serviceHosts, ...(manifest.browser.allowedHosts ?? [])])];
       const evidenceDir = path.join(stateDirFor(ctx.workspace, 'evidence', projectId), ctx.flags.story ? storyOf(ctx) : 'browser');
-      if (ctx.dryRun) return { dryRun: true, wouldRun: steps.length, allowedHosts, browser: ctx.flags.browser ?? manifest.browser.preferred };
+      if (ctx.dryRun) return { dryRun: true, wouldRun: steps.length, interactive, allowedHosts, browser: ctx.flags.browser ?? manifest.browser.preferred };
       const session = await openBrowser({
-        manifest, projectId, allowedHosts, channel: ctx.flags.browser, headless: ctx.flags.headless === true, env: ctx.env, logger: ctx.logger,
+        manifest, projectId, allowedHosts, exactHosts: true, channel: ctx.flags.browser, headless: ctx.flags.headless === true, env: ctx.env, logger: ctx.logger,
       });
       try {
         return { browser: session.channel, ...(await runSteps(session, steps, { allowedHosts, evidenceDir })) };

@@ -24,7 +24,7 @@ Stages, in order: `compile`, `static`, `unit`, `integration`, `contract`, `regre
 - Per stage `status`: `passed`, `failed`, `timed-out`, `skipped` (an earlier stage failed) or `not-configured`.
 - `blockers[]` lists exactly what stops the gate.
 - `junit` gives counts from the test reports; `runs[].outputTail` is the sanitized end of the output; `evidenceFile` is the stored record.
-- `treeId` is the fingerprint of the code that was tested.
+- `treeId` is the fingerprint of the code that was tested. Do not edit files while the tests run: if the code changes during the run the result is recorded as invalid.
 
 ## The gate
 

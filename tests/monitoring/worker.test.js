@@ -453,7 +453,7 @@ describe('runOnce: approval gate for tickets', () => {
     assert.deepEqual(report.pending, [{ incidentId: proposed.incidentId, outcome: 'defect-created' }]);
     assert.equal(state.defects.length, 1);
     assert.deepEqual(state.defects[0].draft, approvedDraft);
-    assert.ok(state.defects[0].draft.descriptionHtml.includes(`autodev-incident:${proposed.dedupeKey}`));
+    assert.ok(state.defects[0].draft.descriptionHtml.includes(`autodev-incident:${proposed.incidentId}:`));
     assert.ok(!state.defects[0].draft.descriptionHtml.includes('jane.doe@example.com'));
     assert.ok(!/Verified root cause/.test(state.defects[0].draft.descriptionHtml));
 
@@ -1047,8 +1047,7 @@ describe('verifyResolution', () => {
   test('a deployment time in the future is never judged as verified', async () => {
     const { workspace, projectId, sources, incident } = await withPrCreated();
     const now = new Date();
-    const result = await verifyResolution(workspace, projectId, incident.incidentId, { sources, deployedAt: minutes(now, 600).toISOString(), now });
-    assert.equal(result.verified, false);
-    assert.equal(result.status, 'validation-pending');
+    await expectCode(() => verifyResolution(workspace, projectId, incident.incidentId, { sources, deployedAt: minutes(now, 600).toISOString(), now }), 'INVALID_ARGUMENT');
+    assert.equal(getIncident(workspace, projectId, incident.incidentId).status, 'pr-created');
   });
 });

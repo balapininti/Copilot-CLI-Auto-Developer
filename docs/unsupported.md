@@ -52,4 +52,6 @@ Treat each row as unverified until a real, authorized call through it has succee
 - The SQL guard and review rules are conservative patterns. They reject some valid SQL (for example a column literally named `SET` or `COMMENT`, comma-separated table lists, quoted identifiers) and can flag harmless code. Rephrase the query; do not weaken the guard.
 - Redaction can mask a 13 to 19 digit number that happens to pass a Luhn check, such as some numeric identifiers, in ticket text.
 - The hook matches shell commands by pattern. A legitimate command inside a target repository that happens to mention a protected path name (for example a file called `project.yaml` in the repository being edited) together with a write verb will be refused; run it differently or ask the user to.
+- `browser run` with clicking or typing steps can only target hosts listed in `browser.allowedHosts` that are not one of the project's service hosts. A UI test that must sign in through an identity provider needs that provider's host in the list.
+- Free-form `db2 query` cannot read the catalog (`SYSCAT`, `SYSIBM`); use `db2 tables` and `db2 describe` for metadata.
 - If the release branch named by a story moves between `repo prepare` and `pr create`, the pull request simply shows the new base; the framework does not rebase.

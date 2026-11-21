@@ -21,7 +21,7 @@ DB2 uses its own approved native authentication through a stored connection prof
 ## What the guard enforces
 
 - One statement, `SELECT` or `WITH … SELECT` only. `INSERT`, `UPDATE`, `DELETE`, `MERGE`, DDL, `CALL`, `SET`, `SELECT INTO`, `FOR UPDATE` and data-change table references are rejected (`SQL_REJECTED`).
-- Every table is written `SCHEMA.TABLE`, and the schema must be one mapped to this project (catalog schemas `SYSCAT`, `SYSIBM`, `SYSSTAT` are allowed for introspection).
+- Every table is written `SCHEMA.TABLE`, and the schema must be one mapped to this project. The catalog (`SYSCAT`, `SYSIBM`) cannot be queried directly; use `db2 tables` and `db2 describe` for metadata.
 - Use explicit `JOIN`; comma-separated table lists and quoted identifiers are rejected.
 - Values go in `?` markers with `--param`, in order. Never build SQL by putting a value into the string.
 - Results are capped at the project's `maxRows`, time-limited, and columns that look sensitive are masked. `truncated: true` means there were more rows.

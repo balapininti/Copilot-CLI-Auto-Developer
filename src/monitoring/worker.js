@@ -313,9 +313,17 @@ async function advance(workspace, manifest, projectDir, incident, sources) {
       await recordDefect(workspace, manifest, incident, found[0], 'defect-created');
       return 'recovered-created-defect';
     }
+    if (incident.defect.approvalConsumed || incident.defect.approvalId === null) {
+      // The approval for exactly this draft was already spent (or none was
+      // needed) and the lookup shows nothing landed: finish the write. If it
+      // fails again the state stays "creating" and the next pass retries.
+      const created = await sources.agility.createDefect(incident.defect.draft);
+      await recordDefect(workspace, manifest, incident, created, 'defect-created');
+      return 'retried-interrupted-create';
+    }
     incident.defect = null;
     if (incident.status === Status.DEFECT_PROPOSED) {
-      applyEvent(incident, 'approval-lapsed', { reason: 'Interrupted before the ticket was created; a fresh approval is needed.' });
+      applyEvent(incident, 'approval-lapsed', { reason: 'Interrupted before the approval was used; a fresh approval is needed.' });
     }
     saveIncident(workspace, incident);
     return 'interrupted-write-not-found';
@@ -345,11 +353,17 @@ async function advance(workspace, manifest, projectDir, incident, sources) {
     return 'approval-lapsed';
   }
 
+  if (isMissing(manifest.agility.defectScope)) {
+    // Checked before the approval is spent: without a scope the create cannot succeed.
+    throw new AutoDevError(ErrorCodes.NOT_CONFIGURED, 'agility.defectScope is not set, so the approved defect cannot be created yet.');
+  }
   // Write-ahead: record the intent before spending the approval or calling out.
   const draft = incident.defect.draft;
   incident.defect.state = 'creating';
   saveIncident(workspace, incident);
   await consumeApproval(workspace, { projectId: incident.projectId, id: approval.id, action: Actions.CREATE_DEFECT, payload: draft });
+  incident.defect.approvalConsumed = true;
+  saveIncident(workspace, incident);
   const created = await sources.agility.createDefect(draft);
   await recordDefect(workspace, manifest, incident, created, 'defect-created');
   return 'defect-created';
@@ -568,6 +582,15 @@ export async function verifyResolution(workspace, projectId, incidentId, options
     if (!options.deployedAt || Number.isNaN(Date.parse(options.deployedAt))) {
       return { incidentId, status: incident.status, verified: false, reason: 'No deployment time was supplied. Validation is pending until an approved deployment is recorded.' };
     }
+    const deployed = Date.parse(options.deployedAt);
+    const prLinked = incident.history.findLast((/** @type {any} */ entry) => entry.event === 'pr-created')?.at;
+    if (deployed > now.getTime() || deployed < Date.parse(incident.firstSeen) || (prLinked && deployed < Date.parse(prLinked))) {
+      throw new AutoDevError(
+        ErrorCodes.INVALID_ARGUMENT,
+        'The deployment time must be after the incident was first seen and after its pull request was linked, and not in the future.',
+        { details: { firstSeen: incident.firstSeen, pullRequestLinkedAt: prLinked ?? null } },
+      );
+    }
     incident.links.deployments.push({ at: new Date(options.deployedAt).toISOString(), ref: options.deploymentRef ?? null });
     applyEvent(incident, 'deployment-recorded', { deployedAt: options.deployedAt });
     saveIncident(workspace, incident);
@@ -589,7 +612,11 @@ export async function verifyResolution(workspace, projectId, incidentId, options
   const sizeMs = monitoring.limits.maxWindowMinutes * 60_000;
   /** @type {Array<{ from: string, to: string }>} */
   const windows = [];
-  for (let cursor = deployedAt; cursor < now.getTime() && windows.length < 24; cursor += sizeMs) {
+  // Check the period ending now. For an old deployment that is the most recent
+  // stretch, which is what shows whether the problem is still happening.
+  const maxWindows = Math.max(24, Math.ceil(requiredMs / sizeMs));
+  const start = Math.max(deployedAt, now.getTime() - maxWindows * sizeMs);
+  for (let cursor = start; cursor < now.getTime() && windows.length < maxWindows; cursor += sizeMs) {
     windows.push({ from: new Date(cursor).toISOString(), to: new Date(Math.min(cursor + sizeMs, now.getTime())).toISOString() });
   }
   let recurrences = 0;

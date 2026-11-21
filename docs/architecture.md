@@ -58,7 +58,7 @@ Skills are generic. Everything specific to a project is under `projects/<id>/` a
 Copilot CLI finds custom agents in `.github/agents` of the folder it is started in and in `~/.copilot/agents`, and skills in `.github/skills` and `~/.copilot/skills`. Being somewhere under `C:\DevWorkspace` does not make them discoverable. Two supported setups:
 
 1. `scripts\Start-AutoDev.ps1` starts Copilot CLI in the automation folder (repository-level discovery).
-2. `autodev discovery install` copies agents and skills into the user-level folders, with a manifest so `discovery uninstall` removes exactly what it added.
+2. `autodev discovery install` copies agents, skills and the hook into the user-level folders, with a manifest so `discovery uninstall` removes exactly what it added. Sessions are still started through the launcher, which is what binds a session to a workspace and project.
 
 `autodev discovery verify` validates every agent, skill and hook file against the documented format and, when the `copilot` command is installed, asks it which skills it can see.
 

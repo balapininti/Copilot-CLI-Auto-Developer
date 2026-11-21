@@ -111,12 +111,12 @@ function withTimeout(promise, ms) {
  * Run one guarded, parameterised SELECT.
  * @param {Record<string, any>} manifest
  * @param {{ sql: string, params?: unknown[], maxRows?: number }} query
- * @param {{ env?: NodeJS.ProcessEnv, driver?: Db2Driver, useCredentialStore?: boolean }} [options]
+ * @param {{ env?: NodeJS.ProcessEnv, driver?: Db2Driver, useCredentialStore?: boolean, allowCatalog?: boolean }} [options]
  */
 export async function runSelect(manifest, query, options = {}) {
   const database = manifest.database;
   const params = query.params ?? [];
-  const checked = validateSelect(query.sql, { allowedSchemas: database.schemas, params });
+  const checked = validateSelect(query.sql, { allowedSchemas: database.schemas, params, allowCatalog: options.allowCatalog === true });
   const requested = query.maxRows ?? database.maxRows;
   if (!Number.isInteger(requested) || requested < 1) {
     throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'maxRows must be a whole number of at least 1.');
@@ -155,7 +155,7 @@ export async function listTables(manifest, schema, options = {}) {
       sql: 'SELECT TABNAME, TYPE, CARD, REMARKS FROM SYSCAT.TABLES WHERE TABSCHEMA = ? ORDER BY TABNAME',
       params: [name],
     },
-    options,
+    { ...options, allowCatalog: true },
   );
 }
 
@@ -174,7 +174,7 @@ export async function describeTable(manifest, schema, table, options = {}) {
       sql: 'SELECT COLNAME, TYPENAME, LENGTH, SCALE, NULLS, KEYSEQ, REMARKS FROM SYSCAT.COLUMNS WHERE TABSCHEMA = ? AND TABNAME = ? ORDER BY COLNO',
       params: [name, assertIdentifier(table, 'table name')],
     },
-    options,
+    { ...options, allowCatalog: true },
   );
   if (result.rowCount === 0) {
     throw new AutoDevError(ErrorCodes.NOT_FOUND, `No table ${name}.${table.toUpperCase()} is visible to this account. Do not assume its columns.`);

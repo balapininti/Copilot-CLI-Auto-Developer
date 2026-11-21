@@ -37,6 +37,7 @@ On `APPROVAL_REQUIRED`: show the user `details.summary` and `details.approvalId`
 - `AUTH_REQUIRED`: no token and no usable browser session. Say which secret is missing (`details.secretName`) or that sign-in was not completed.
 - `AUTH_FAILED` / `ACCESS_DENIED`: the token is invalid, or the account cannot see that project. Say so plainly.
 - `NOT_FOUND`: no such story visible to this account.
+- `PROJECT_SCOPE_VIOLATION`: the ticket belongs to a team that is not one of this project's. It is outside this session; do not work on it here.
 - `NOT_CONFIGURED`: a manifest field or environment variable is unset; `details.field` names it.
 - `UPSTREAM_ERROR` mentioning rest-1.v1: the instance may use a different API version; see `docs/unsupported.md`.
 

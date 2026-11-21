@@ -50,7 +50,6 @@ const DEFAULT_TTL_MINUTES = 24 * 60;
  * @property {string} action
  * @property {string} summary
  * @property {string} payloadHash
- * @property {string} challenge short code the approver types to confirm
  * @property {unknown} preview redacted copy of the payload, for display
  * @property {'pending' | 'approved' | 'denied' | 'consumed' | 'expired'} status
  * @property {string} requestedAt
@@ -149,7 +148,6 @@ export async function requestApproval(workspace, request) {
       action: request.action,
       summary: request.summary,
       payloadHash,
-      challenge: payloadHash.slice(0, 6).toUpperCase(),
       preview: redact(request.payload, { pii: true }),
       status: 'pending',
       requestedAt: new Date(now).toISOString(),

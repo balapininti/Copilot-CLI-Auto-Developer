@@ -148,10 +148,26 @@ export async function withLock(lockFile, fn, options = {}) {
  */
 function isStale(lockFile, staleMs) {
   try {
-    return Date.now() - fs.statSync(lockFile).mtimeMs > staleMs;
+    if (Date.now() - fs.statSync(lockFile).mtimeMs > staleMs) return true;
   } catch {
     return true;
   }
+  // The owner recorded its process id. If that process no longer exists (it
+  // was killed, or the machine restarted), the lock is abandoned.
+  try {
+    const owner = JSON.parse(fs.readFileSync(lockFile, 'utf8')).owner;
+    const pid = Number(String(owner).split(':')[0]);
+    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
+      try {
+        process.kill(pid, 0);
+      } catch (error) {
+        return /** @type {NodeJS.ErrnoException} */ (error).code === 'ESRCH';
+      }
+    }
+  } catch {
+    // unreadable or half-written lock: fall back to the age rule
+  }
+  return false;
 }
 
 /**

@@ -138,7 +138,9 @@ const LINE_RULES = [
 
 /**
  * @param {DiffFile[]} files
- * @param {{ maxFiles?: number, maxLines?: number, schemaChangeAuthorized?: boolean }} [options]
+ * @param {{ maxFiles?: number, maxLines?: number, schemaChangeAuthorized?: boolean, allPaths?: string[], incomplete?: boolean }} [options]
+ *   `allPaths`: every changed path (from numstat), so path rules still apply to files whose content could not be read.
+ *   `incomplete`: the diff was cut short.
  */
 export function reviewDiff(files, options = {}) {
   const maxFiles = options.maxFiles ?? 50;
@@ -146,6 +148,19 @@ export function reviewDiff(files, options = {}) {
   /** @type {Finding[]} */
   const findings = [];
   const addedTotal = files.reduce((sum, file) => sum + file.added.length, 0);
+  const parsedPaths = new Set(files.map((file) => file.path));
+  const unread = (options.allPaths ?? []).filter((changed) => !parsedPaths.has(changed));
+  if (options.incomplete || unread.length > 0) {
+    findings.push({
+      rule: 'diff-not-fully-reviewed',
+      severity: 'blocker',
+      file: unread[0] ?? null,
+      line: null,
+      message: `The change is too large to read in full (${unread.length} file(s) were not examined). It cannot pass an automated review; split it.`,
+    });
+  }
+  // Path-based rules also cover the files whose content was not read.
+  files = [...files, ...unread.map((changed) => ({ path: changed, isNew: false, isBinary: false, added: [], deleted: 0 }))];
 
   for (const file of files) {
     for (const { line, text } of file.added) {

@@ -517,10 +517,10 @@ describe('bitbucket git: working with a real clone of a local file remote', () =
     const repoPath = await clone();
     const before = await remoteHeads();
     for (const branch of ['main', 'release/2.15', 'develop']) {
-      await expectCode(() => gitAdapter.pushBranch({ repoPath, name: 'service-api', branch, protectedBranches: PROTECTED }), 'POLICY_PROHIBITED', /protected/);
+      await expectCode(() => gitAdapter.pushBranch({ repoPath, name: 'service-api', branch, protectedBranches: PROTECTED, approvedUrl: remote.url }), 'POLICY_PROHIBITED', /protected/);
     }
     for (const branch of ['--force', '+main', 'main:refs/heads/main', 'feature/x y', '--delete']) {
-      await expectCode(() => gitAdapter.pushBranch({ repoPath, name: 'service-api', branch, protectedBranches: PROTECTED }), 'INVALID_ARGUMENT');
+      await expectCode(() => gitAdapter.pushBranch({ repoPath, name: 'service-api', branch, protectedBranches: PROTECTED, approvedUrl: remote.url }), 'INVALID_ARGUMENT');
     }
     assert.equal(await remoteHeads(), before);
   });
@@ -530,7 +530,7 @@ describe('bitbucket git: working with a real clone of a local file remote', () =
     const { branch } = await feature(repoPath, 'Push me');
     fs.writeFileSync(path.join(repoPath, 'pushed.txt'), 'x\n');
     const commit = await gitAdapter.commitAll({ repoPath, name: 'service-api', message: 'S-01001: push me', storyId: 'S-01001', protectedBranches: PROTECTED });
-    const result = await gitAdapter.pushBranch({ repoPath, name: 'service-api', branch, protectedBranches: PROTECTED });
+    const result = await gitAdapter.pushBranch({ repoPath, name: 'service-api', branch, protectedBranches: PROTECTED, approvedUrl: remote.url });
     assert.deepEqual(result, { repository: 'service-api', pushed: true, branch });
     assert.match(await remoteHeads(), new RegExp(`^${commit.headSha}\\trefs/heads/${branch}$`, 'm'));
   });
@@ -540,13 +540,13 @@ describe('bitbucket git: working with a real clone of a local file remote', () =
     const { branch } = await feature(one, 'Diverge');
     fs.writeFileSync(path.join(one, 'one.txt'), '1\n');
     const first = await gitAdapter.commitAll({ repoPath: one, name: 'service-api', message: 'S-01001: one', storyId: 'S-01001', protectedBranches: PROTECTED });
-    await gitAdapter.pushBranch({ repoPath: one, name: 'service-api', branch, protectedBranches: PROTECTED });
+    await gitAdapter.pushBranch({ repoPath: one, name: 'service-api', branch, protectedBranches: PROTECTED, approvedUrl: remote.url });
 
     const two = await clone();
     await git(['switch', '--quiet', '--no-track', '-c', branch, 'origin/release/2.15'], two);
     fs.writeFileSync(path.join(two, 'two.txt'), '2\n');
     await gitAdapter.commitAll({ repoPath: two, name: 'service-api', message: 'S-01001: two', storyId: 'S-01001', protectedBranches: PROTECTED });
-    await expectCode(() => gitAdapter.pushBranch({ repoPath: two, name: 'service-api', branch, protectedBranches: PROTECTED }), 'UPSTREAM_ERROR');
+    await expectCode(() => gitAdapter.pushBranch({ repoPath: two, name: 'service-api', branch, protectedBranches: PROTECTED, approvedUrl: remote.url }), 'UPSTREAM_ERROR');
     assert.match(await remoteHeads(), new RegExp(`^${first.headSha}\\trefs/heads/${branch}$`, 'm'));
   });
 

@@ -96,14 +96,17 @@ async function loadPlaywright() {
 
 /**
  * Launch the approved browser with the project's persistent profile.
- * @param {{ manifest: Record<string, any>, projectId: string, allowedHosts: string[], channel?: string | null, headless?: boolean, env?: NodeJS.ProcessEnv, logger?: import('../../core/logger.js').Logger, userDataDir?: string }} options
+ * @param {{ manifest: Record<string, any>, projectId: string, allowedHosts: string[], channel?: string | null, headless?: boolean, env?: NodeJS.ProcessEnv, logger?: import('../../core/logger.js').Logger, userDataDir?: string, exactHosts?: boolean }} options
+ *   `exactHosts`: use `allowedHosts` as given instead of adding the manifest's browser hosts.
  * @returns {Promise<BrowserSession>}
  */
 export async function openBrowser(options) {
   const env = options.env ?? process.env;
   const logger = options.logger ?? nullLogger;
   const channel = resolveChannel(options.manifest, options.channel);
-  const allowedHosts = [...new Set([...options.allowedHosts, ...(options.manifest.browser.allowedHosts ?? [])])];
+  const allowedHosts = options.exactHosts
+    ? [...new Set(options.allowedHosts)]
+    : [...new Set([...options.allowedHosts, ...(options.manifest.browser.allowedHosts ?? [])])];
   if (allowedHosts.length === 0) {
     throw new AutoDevError(ErrorCodes.NOT_CONFIGURED, 'No allowed hosts are configured for the browser. Add them under browser.allowedHosts.');
   }

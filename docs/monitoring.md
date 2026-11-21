@@ -47,7 +47,7 @@ Do not schedule passes more often than your organization's Splunk and Dynatrace 
 
 ## What one pass does
 
-1. **Takes a lock** for the project. A second pass that starts while one is running exits with `already-running`.
+1. **Takes a lock** for the project. A second pass that starts while one is running exits with `already-running`. A lock left behind by a pass that was killed is reclaimed as soon as its process is gone.
 2. **Honours backoff.** After a failed pass the next attempt is delayed, doubling up to an hour, and reported as `backing-off` until then.
 3. **Finishes pending work**: creates tickets whose approval was granted, resolves writes that were interrupted, queues handoffs that were not queued, and re-checks incidents waiting on a mapping.
 4. **Reads the next window(s)** after the checkpoint, each no longer than `maxWindowMinutes`, oldest first, a few per pass. After downtime it catches up gradually and reports `behind: true` until it has.
@@ -89,7 +89,9 @@ node scripts\autodev.mjs incident show INC-… --project <id>      # includes th
 node scripts\autodev.mjs approvals review apr-… --project <id>   # in your own terminal
 ```
 
-The next pass creates the defect exactly once (the write is recorded before it is attempted and looked up by marker afterwards) and queues the handoff.
+The next pass creates the defect exactly once (the write is recorded before it is attempted and looked up by marker afterwards) and queues the handoff. If Agility is unreachable at that moment, the approval is not lost: later passes retry the same approved draft until it lands.
+
+The marker is tied to the incident. If the same error comes back after an incident was resolved or closed, that is a new incident with its own proposal, not a silent link to the old ticket.
 
 ## Handoff to development
 
@@ -118,7 +120,7 @@ It marks the incident `resolved-verified` only when a full dedupe window after t
 |---|---|
 | Is it running, and when did it last succeed? | `autodev monitor status` |
 | What would the next pass do? | `autodev monitor run --dry-run` |
-| Why did the last pass fail? | `monitor status` → `checkpoint.lastError` |
+| Why did the last pass fail? | `monitor status` → `checkpoint.lastError`. A failed pass also exits non-zero (5), so the scheduled task's last result shows it. |
 | Retry now despite backoff | `autodev monitor run --ignore-backoff` |
 | What did it write? | `autodev audit show --action monitoring` and `--action agility` |
 

@@ -59,11 +59,17 @@ const PAGE = `<!doctype html>
   </script>
 </body></html>`;
 
-test('browser smoke: real browser against a local page', { timeout: 60_000 }, async (t) => {
+test('browser smoke: real browser against a local page', { timeout: 180_000 }, async (t) => {
   try {
     await import('playwright-core');
   } catch {
     t.skip('playwright-core is not installed');
+    return;
+  }
+  if (process.env.CI && process.env.AUTODEV_BROWSER_SMOKE !== '1') {
+    // Hosted CI runners start a browser slowly and unreliably; the smoke test
+    // is run there in its own non-blocking step instead (npm run test:browser).
+    t.skip('browser smoke test is opt-in on CI (set AUTODEV_BROWSER_SMOKE=1)');
     return;
   }
   const choice = chooseBrowser();

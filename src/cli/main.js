@@ -7,6 +7,8 @@
  * or hit an upstream problem (see core/errors.js).
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { AutoDevError, ErrorCodes, exitCodeFor, toAutoDevError } from '../core/errors.js';
@@ -154,6 +156,22 @@ export async function main(argv, io = {}) {
 
     assertTlsPolicy(env);
     const workspace = resolveWorkspace({ workspace: flags.workspace, env });
+    if (flags.workspace && (env.AUTODEV_SESSION_ID || env.AUTODEV_PROJECT)) {
+      // Inside a session the workspace is fixed by the launcher. Pointing a
+      // command at another one would swap the project binding, the policies
+      // and the approval store all at once.
+      const bound = resolveWorkspace({ env }).root;
+      const real = (/** @type {string} */ dir) => {
+        try {
+          return fs.realpathSync(dir);
+        } catch {
+          return path.resolve(dir);
+        }
+      };
+      if (real(workspace.root) !== real(bound)) {
+        throw new AutoDevError(ErrorCodes.PROJECT_SCOPE_VIOLATION, 'This session is bound to its workspace; --workspace cannot point at a different one.');
+      }
+    }
     const logger = createLogger({ bindings: { command: commandName } });
     /** @type {ReturnType<CommandContext['project']> | null} */
     let scoped = null;

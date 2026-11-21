@@ -43,9 +43,9 @@ function incident(extra = {}) {
 describe('defect draft', () => {
   test('carries the idempotency marker, scope, boards, severity and incident id', () => {
     const draft = buildDefectDraft(incident(), manifest);
-    assert.equal(draft.idempotencyMarker, 'autodev-incident:abcdef0123456789abcdef01');
+    assert.equal(draft.idempotencyMarker, `autodev-incident:${incident().incidentId}:abcdef012345`);
     assert.equal(draft.idempotencyMarker, idempotencyMarker(incident()));
-    assert.ok(draft.descriptionHtml.includes('autodev-incident:abcdef0123456789abcdef01'));
+    assert.ok(draft.descriptionHtml.includes(draft.idempotencyMarker));
     assert.equal(draft.scope, 'Scope:1');
     assert.deepEqual(draft.boardIds, ['501']);
     assert.equal(draft.severity, 'high');
@@ -84,7 +84,7 @@ describe('defect draft', () => {
       assert.ok(!text.includes(secret), `leaked: ${secret}`);
     }
     assert.ok(text.includes('[REDACTED:email]'));
-    assert.ok(text.includes('autodev-incident:abcdef0123456789abcdef01'), 'marker survives sanitizing');
+    assert.ok(text.includes(draft.idempotencyMarker), 'marker survives sanitizing');
   });
 
   test('log text cannot inject markup into the ticket body', () => {

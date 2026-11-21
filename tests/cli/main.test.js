@@ -15,7 +15,10 @@ import { fullManifest, removeDir, tempDir, tempWorkspace, writeProject } from '.
 async function run(argv, env = {}) {
   /** @type {string[]} */
   const writes = [];
-  const exitCode = await main(argv, { env: { AUTODEV_DISABLE_CREDENTIAL_STORE: '1', ...env }, stdout: (text) => { writes.push(text); } });
+  // A launcher session always carries its workspace; mirror that here.
+  const at = argv.indexOf('--workspace');
+  const session = (env.AUTODEV_SESSION_ID || env.AUTODEV_PROJECT) && at >= 0 && !('AUTODEV_WORKSPACE' in env) ? { AUTODEV_WORKSPACE: argv[at + 1] } : {};
+  const exitCode = await main(argv, { env: { AUTODEV_DISABLE_CREDENTIAL_STORE: '1', ...session, ...env }, stdout: (text) => { writes.push(text); } });
   assert.equal(writes.length, 1, `exactly one envelope must be printed, got ${writes.length}`);
   /** @type {any} */
   let envelope;
@@ -194,6 +197,20 @@ describe('cli main', () => {
         const { exitCode, envelope } = await run([...argv, '--project', 'billing', ...W], { AUTODEV_PROJECT: 'orders' });
         assert.equal(exitCode, 4, `${argv.join(' ')} -> ${JSON.stringify(envelope.error ?? envelope.data)}`);
         assert.equal(envelope.error.code, 'PROJECT_SCOPE_VIOLATION');
+      }
+    });
+
+    test('inside a session --workspace cannot point at a different workspace', async () => {
+      const other = tempWorkspace();
+      try {
+        writeProject(other.workspace, { id: 'orders', policies: { createPR: 'allowed' } });
+        for (const env of [{ AUTODEV_PROJECT: 'orders', AUTODEV_WORKSPACE: ws.root }, { AUTODEV_SESSION_ID: 'sess-ws', AUTODEV_WORKSPACE: ws.root }, { AUTODEV_PROJECT: 'orders' }]) {
+          const { exitCode, envelope } = await run(['project', 'show', '--project', 'orders', '--workspace', other.root], { AUTODEV_WORKSPACE: '', ...env });
+          assert.equal(exitCode, 4, JSON.stringify(envelope));
+          assert.equal(envelope.error.code, 'PROJECT_SCOPE_VIOLATION');
+        }
+      } finally {
+        other.cleanup();
       }
     });
 

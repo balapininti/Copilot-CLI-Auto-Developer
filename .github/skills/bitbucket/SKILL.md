@@ -24,7 +24,7 @@ Use these commands for repository operations instead of raw `git` for anything t
 
 ## What the commands guarantee
 
-- **Approved source only.** A repository is cloned only from the URL named by its `urlEnv`, and only if the host is in `bitbucket.allowedHosts`. An existing clone whose `origin` differs is refused.
+- **Approved source and destination only.** A repository is cloned only from the URL named by its `urlEnv`, and only if the host is in `bitbucket.allowedHosts`. An existing clone whose `origin` fetch or push URL differs is refused. Do not run `git remote` or `git config` in a clone.
 - **Dirty clones are preserved.** Existing uncommitted changes are reported and left alone. No reset, no clean, no checkout over them.
 - **The release branch rules.** The feature branch starts from the story's release branch, which must exist on the remote. If it does not, the result is `BRANCH_MISSING` and nothing falls back to `main`.
 - **Unique feature branches.** Named from the project pattern (default `feature/{storyId}-{slug}`), with a numeric suffix if the name is taken.
@@ -36,7 +36,7 @@ Use these commands for repository operations instead of raw `git` for anything t
 | Code | Meaning | What to do |
 |---|---|---|
 | `DIRTY_WORKTREE` | Uncommitted changes in the clone | Show `details.changes` to the user; they decide |
-| `BRANCH_MISSING` | Story names no release branch, or it is not on the remote | Blocker. Ask the user which release branch; rerun with `--release-branch <name>` only if they name one |
+| `BRANCH_MISSING` | Story names no release branch, or it is not on the remote | Blocker. Ask the user. `--release-branch <name>` is accepted only when the story names none and the user named one; it cannot replace a branch the story names |
 | `REPO_URL_NOT_APPROVED` | URL host not allow-listed, or the clone points elsewhere | Stop and report |
 | `GATE_FAILED` | A check is missing, failed, or stale | `details.blockers` says which; rerun that check |
 | `APPROVAL_REQUIRED` | The PR needs a person's approval | Give the user `details.approvalId`; rerun with `--approval <id>` after they approve |

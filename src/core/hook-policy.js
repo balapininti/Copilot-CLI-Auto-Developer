@@ -30,7 +30,7 @@ const SHELL_RULES = [
     reason: 'The session\'s project binding, workspace and dry-run mode cannot be changed from inside the session.',
   },
   {
-    pattern: /\bgit\b[^\n|;&]*\bpush\b/i,
+    pattern: /\bgit\b[^\n|;&]*\s(push|send-pack)(\s|$)/i,
     reason: 'Branches are pushed only by "autodev pr create", after tests, review and approval.',
   },
   {
@@ -48,6 +48,18 @@ const SHELL_RULES = [
   {
     pattern: /(?<!autodev(\.mjs|\.ps1)?["']?)(^|[\s;&|(])(db2|db2cmd|db2cli|clpplus)(\.exe|\.bat)?\s/i,
     reason: 'Use "autodev db2 tables|describe|query" for database access; it is read-only, scoped and limited.',
+  },
+  {
+    pattern: /\benv\s+(-u|--unset)\s*=?\s*AUTODEV_|\b(del|rm|Remove-Item|ri|Clear-Item|cli)\s+(-Path\s+)?Env:\\?AUTODEV_|\$env:AUTODEV_\w+\s*=|\bAUTODEV_\w+=\S*\s|--workspace\b/i,
+    reason: 'The session\'s workspace, project binding and dry-run mode cannot be changed or bypassed from inside the session.',
+  },
+  {
+    pattern: /Get-AutoDevCredential|Set-AutoDevCredential|\bcmdkey\b|\bsecurity\s+find-(generic|internet)-password|\bsecret-tool\b|CredRead|Get-StoredCredential|\bvaultcmd\b/i,
+    reason: 'Secrets are read only by the autodev CLI, in memory. Agents never read the credential store.',
+  },
+  {
+    pattern: /\bgit\b[^\n|;&]*\s(config|remote\s+(add|set-url|rename|remove|rm))(\s|$)/i,
+    reason: 'Repository remotes and git configuration are not changed by agents; clones use the approved URL only.',
   },
 ];
 
@@ -84,6 +96,9 @@ function isInside(target, root) {
  * @returns {string | null}
  */
 export function protectedPathReason(target, roots) {
+  if (target.split(path.sep).includes('.git')) {
+    return 'Git metadata (.git) is not edited directly; remotes, hooks and configuration stay as the user set them.';
+  }
   const stateDir = path.join(roots.workspaceRoot, 'state');
   const projectsDir = path.join(roots.workspaceRoot, 'projects');
   if (isInside(target, roots.automationRoot)) {
@@ -112,10 +127,13 @@ export function protectedPathReason(target, roots) {
 
 /**
  * Why a shell command is refused, or null when it may run.
- * @param {string} command
+ * @param {string} rawCommand
  * @returns {string | null}
  */
-export function shellDenyReason(command) {
+export function shellDenyReason(rawCommand) {
+  // Quotes, carets and backticks can split a word without changing what the
+  // shell runs (approvals "review", g^it push). Match on the text without them.
+  const command = `${rawCommand}\n${String(rawCommand).replace(/["'`^]/g, '')}`;
   for (const rule of SHELL_RULES) {
     if (rule.pattern.test(command)) return rule.reason;
   }
@@ -153,13 +171,15 @@ export function evaluateToolCall(input, roots) {
     try {
       args = JSON.parse(args);
     } catch {
-      args = SHELL_TOOLS.has(toolName) ? { command: args } : {};
+      args = SHELL_TOOLS.has(toolName) || /bash|powershell|pwsh|shell|terminal/.test(toolName) ? { command: args } : {};
     }
   }
   const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
 
-  if (SHELL_TOOLS.has(toolName)) {
-    const command = String(args?.command ?? args?.script ?? args?.cmd ?? '');
+  // Includes the tools that send further input to a running shell (write_bash, write_powershell).
+  const isShell = SHELL_TOOLS.has(toolName) || /bash|powershell|pwsh|shell|terminal/.test(toolName);
+  if (isShell) {
+    const command = [args?.command, args?.script, args?.cmd, args?.input, args?.text, args?.keys].filter((value) => typeof value === 'string').join('\n');
     const reason = shellDenyReason(command);
     return reason ? { decision: 'deny', reason } : { decision: 'allow', reason: null };
   }

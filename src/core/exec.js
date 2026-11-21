@@ -94,13 +94,38 @@ export function runCommand(command, args = [], options = {}) {
     child.stdout.on('data', collect('out'));
     child.stderr.on('data', collect('err'));
 
+    let settled = false;
+    /** @type {NodeJS.Timeout | undefined} */
+    let grace;
+    const finish = (/** @type {number | null} */ exitCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearTimeout(grace);
+      const clean = options.redactOutput === false ? (/** @type {string} */ text) => text : redactString;
+      resolve({ exitCode, stdout: clean(stdout), stderr: clean(stderr), timedOut, truncated, durationMs: Date.now() - started });
+    };
+
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
+      if (process.platform === 'win32' && child.pid) {
+        // Killing cmd.exe alone would leave the build tool it started running.
+        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => child.kill('SIGKILL'));
+      } else {
+        child.kill('SIGKILL');
+      }
+      // A grandchild can keep the output pipes open; do not wait for it forever.
+      grace = setTimeout(() => {
+        child.stdout.destroy();
+        child.stderr.destroy();
+        finish(null);
+      }, 5_000);
     }, timeoutMs);
 
     child.on('error', (error) => {
+      settled = true;
       clearTimeout(timer);
+      clearTimeout(grace);
       const code = /** @type {NodeJS.ErrnoException} */ (error).code;
       reject(
         code === 'ENOENT'
@@ -109,18 +134,7 @@ export function runCommand(command, args = [], options = {}) {
       );
     });
 
-    child.on('close', (exitCode) => {
-      clearTimeout(timer);
-      const clean = options.redactOutput === false ? (/** @type {string} */ text) => text : redactString;
-      resolve({
-        exitCode,
-        stdout: clean(stdout),
-        stderr: clean(stderr),
-        timedOut,
-        truncated,
-        durationMs: Date.now() - started,
-      });
-    });
+    child.on('close', (exitCode) => finish(exitCode));
 
     child.stdin.on('error', () => {});
     child.stdin.end(options.input ?? '');

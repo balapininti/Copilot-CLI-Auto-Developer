@@ -47,7 +47,7 @@ describe('requestApproval', () => {
     assert.equal(approval.projectId, P);
     assert.equal(approval.action, Actions.CREATE_PR);
     assert.match(approval.payloadHash, /^[0-9a-f]{64}$/);
-    assert.equal(approval.challenge, approval.payloadHash.slice(0, 6).toUpperCase());
+    assert.equal('challenge' in approval, false, 'the confirmation code is generated at review time and never stored');
     assert.equal(approval.requestedBy, 'autodev');
     assert.ok(Date.parse(approval.expiresAt) > Date.now());
     assert.deepEqual(getApproval(ws.workspace, P, approval.id), approval);

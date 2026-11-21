@@ -118,6 +118,8 @@ export async function createPullRequest(workspace, input) {
     repository: repoName,
     sourceBranch: state.featureBranch,
     targetBranch: state.baseBranch,
+    // Shown to the approver: whether the base came from the story or was named by hand.
+    targetBranchSource: state.baseBranchSource ?? 'story',
     headSha: status.headSha,
     title,
     description: buildDescription(run, repoName, diff, input),
@@ -134,7 +136,10 @@ export async function createPullRequest(workspace, input) {
   });
   if (!gate.proceed) return { dryRun: true, wouldCreate: payload };
 
-  await git.pushBranch({ repoPath, name: repoName, branch: state.featureBranch, protectedBranches: manifest.branching.protected });
+  await git.pushBranch({
+    repoPath, name: repoName, branch: state.featureBranch, protectedBranches: manifest.branching.protected,
+    approvedUrl: git.approvedRepoUrl(manifest, repo, input.env),
+  });
 
   /** @type {Record<string, any>} */
   let pr;

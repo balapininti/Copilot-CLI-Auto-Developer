@@ -25,7 +25,7 @@ Press Enter to skip any question. A skipped answer is written as `null` and repo
 |---|---|
 | `id`, `name` | Project id (folder name) and display name |
 | `agilityBaseUrlEnv` | **Name** of the environment variable holding the Agility URL |
-| `boardIds`, `teamNames` | Agility team room id(s) and team name(s) that map to this project |
+| `boardIds`, `teamNames` | Agility team room id(s) and team name(s) that map to this project. With team names set, a session refuses tickets that belong to another team. |
 | `defectScope` | Agility scope OID where defects are created, e.g. `Scope:1234` |
 | `acceptanceCriteriaField`, `releaseBranchField` | Your instance's attribute names for these |
 | `releaseBranchPattern` | Regex with one capture group, used when there is no release-branch field |

@@ -39,6 +39,7 @@ The result lists each step's outcome, the final URL, and `blockedNavigations` (h
 - **Headed for sign-in.** The user types credentials and completes MFA. Automation never fills a password field (`POLICY_PROHIBITED` if asked to).
 - **Allowlist.** Top-level navigation is limited to the project's service hosts plus `browser.allowedHosts`. Identity-provider hosts used by SSO must be listed there by the project owner.
 - **Certificates are always validated.** A certificate error is an error.
+- **Read-only on project systems.** Steps that click, type or press keys run only against the application under test (hosts in `browser.allowedHosts`). Agility, Bitbucket, Splunk and Dynatrace can be opened, read and screenshotted, never operated: changes to them go through the `autodev` commands and their approvals. A steps file that mixes the two is refused (`POLICY_PROHIBITED`).
 
 ## Rules
 

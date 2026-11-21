@@ -180,7 +180,7 @@ describe('db2 client with an injected driver', () => {
     assert.equal(error.details.field, 'database.connectionProfile');
     const noSchemas = manifestWith();
     noSchemas.database.schemas = [];
-    await expectCode(() => runSelect(noSchemas, { sql: 'SELECT TABNAME FROM SYSCAT.TABLES' }, options(driver)), 'NOT_CONFIGURED');
+    await expectCode(() => runSelect(noSchemas, { sql: 'SELECT TABNAME FROM SYSCAT.TABLES' }, { ...options(driver), allowCatalog: true }), 'NOT_CONFIGURED');
     assert.equal(driver.log.opened.length, 0);
   });
 

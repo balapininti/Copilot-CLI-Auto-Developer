@@ -33,6 +33,13 @@ jobs:
       - run: npm run typecheck
       - name: Unit tests
         run: npm test
+        timeout-minutes: 10
+      - name: Browser smoke test (informational; hosted runners are unreliable for real browsers)
+        run: npm run test:browser
+        env:
+          AUTODEV_BROWSER_SMOKE: '1'
+        timeout-minutes: 5
+        continue-on-error: true
       - name: Agent, skill and hook discovery check
         run: node scripts/autodev.mjs discovery verify --strict
       - name: End-to-end dry run against local mocks

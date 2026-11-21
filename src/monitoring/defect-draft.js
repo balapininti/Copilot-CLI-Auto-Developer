@@ -13,7 +13,9 @@ import { redactString } from '../core/redact.js';
  * @returns {string}
  */
 export function idempotencyMarker(incident) {
-  return `autodev-incident:${incident.dedupeKey}`;
+  // Scoped to this incident, not just its signature: a regression after the
+  // incident was resolved or closed is a new incident and gets its own ticket.
+  return `autodev-incident:${incident.incidentId}:${String(incident.dedupeKey).slice(0, 12)}`;
 }
 
 /** @param {unknown} value */

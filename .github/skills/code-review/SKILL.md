@@ -35,6 +35,7 @@ Two gates, both required before a pull request:
 | `dependency-change` | major / info | Dependencies added or build config changed |
 | `no-test-change` | major | Source changed with no test added or updated |
 | `change-too-large` | major | More than 50 files or 2000 added lines: needs a human and probably splitting |
+| `diff-not-fully-reviewed` | blocker | The change is too large to be read in full; split it |
 | `debug-output`, `swallowed-exception`, `todo-added`, `hardcoded-url` | minor | Clean up |
 
 Blockers fail the gate. Majors must be fixed or explicitly accepted by the independent reviewer with a reason. Patterns miss things and sometimes misfire: each finding is a prompt to look, and a clean run is not a review.

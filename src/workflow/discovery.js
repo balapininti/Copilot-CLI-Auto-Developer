@@ -30,6 +30,7 @@ const SKILLS_DIR = path.join(AUTOMATION_ROOT, '.github', 'skills');
 const HOOKS_DIR = path.join(AUTOMATION_ROOT, '.github', 'hooks');
 const MAX_AGENT_BODY = 30_000;
 const INSTALL_MANIFEST = 'autodev-install.json';
+const USER_HOOK = path.join('hooks', 'autodev.json');
 
 /**
  * @param {string} content
@@ -192,7 +193,7 @@ function removeInstalled(home, recorded) {
     return;
   }
   const top = path.relative(home, target).split(path.sep)[0];
-  if (top !== 'agents' && top !== 'skills') return;
+  if (top !== 'agents' && top !== 'skills' && recorded !== USER_HOOK) return;
   fs.rmSync(target, { force: true });
 }
 
@@ -216,7 +217,7 @@ export function installUserLevel(options = {}) {
       copies.push({ from: absolute, to: path.join('skills', skill.name, path.relative(dir, absolute)) });
     }
   }
-  const conflicts = copies.filter((copy) => fs.existsSync(path.join(home, copy.to)) && !previous.has(copy.to)).map((copy) => copy.to);
+  const conflicts = [...copies, { from: '', to: USER_HOOK }].filter((copy) => fs.existsSync(path.join(home, copy.to)) && !previous.has(copy.to)).map((copy) => copy.to);
   if (conflicts.length > 0 && !options.force) {
     throw new AutoDevError(
       ErrorCodes.CONFLICT,
@@ -224,21 +225,30 @@ export function installUserLevel(options = {}) {
       { details: { conflicts, home, howToFix: 'Move them aside, or rerun with --force to replace them.' } },
     );
   }
-  if (options.dryRun) return { dryRun: true, home, wouldCopy: copies.map((copy) => copy.to) };
+  if (options.dryRun) return { dryRun: true, home, wouldCopy: [...copies.map((copy) => copy.to), USER_HOOK] };
 
   for (const copy of copies) {
     ensureDir(path.dirname(path.join(home, copy.to)));
     fs.copyFileSync(copy.from, path.join(home, copy.to));
   }
+  // The hook must travel with the agents: without it a session started in
+  // another folder would have the agents but not the guard on their tools.
+  const hookScript = path.join(AUTOMATION_ROOT, 'scripts', 'hooks', 'pre-tool-use.mjs');
+  const hookCommand = `node "${hookScript}"`;
+  ensureDir(path.join(home, 'hooks'));
+  atomicWriteJson(path.join(home, USER_HOOK), {
+    version: 1,
+    hooks: { preToolUse: [{ type: 'command', bash: hookCommand, powershell: hookCommand, timeoutSec: 15 }] },
+  });
   for (const stale of previous) {
     if (!copies.some((copy) => copy.to === stale)) removeInstalled(home, stale);
   }
-  atomicWriteJson(manifestFile, { installedAt: new Date().toISOString(), source: AUTOMATION_ROOT, files: copies.map((copy) => copy.to) });
+  atomicWriteJson(manifestFile, { installedAt: new Date().toISOString(), source: AUTOMATION_ROOT, files: [...copies.map((copy) => copy.to), USER_HOOK] });
   return {
     dryRun: false,
     home,
-    copied: copies.length,
-    note: 'Skills run the autodev CLI from this automation folder; set AUTODEV_HOME to its path (Start-AutoDev.ps1 does) so they can find it from other folders.',
+    copied: copies.length + 1,
+    note: 'Agents, skills and the preToolUse hook were installed for this user. Sessions must still be started through Start-AutoDev.ps1: it sets AUTODEV_HOME, the workspace and the session id that bind a session to one project. A session started any other way is not bound.',
   };
 }
 

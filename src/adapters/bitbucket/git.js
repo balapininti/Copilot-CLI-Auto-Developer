@@ -172,6 +172,24 @@ export async function inspectRepo(repoPath) {
 }
 
 /**
+ * The URL git would actually push to (after pushurl and insteadOf rewriting)
+ * must be the approved one too; a clone can be configured to fetch from one
+ * place and push to another.
+ * @param {string} repoPath
+ * @param {string} approvedUrl
+ */
+export async function pushUrlMatches(repoPath, approvedUrl) {
+  const result = await runCommand('git', ['remote', 'get-url', '--push', '--all', 'origin'], { cwd: repoPath });
+  if (result.exitCode !== 0) return false;
+  const urls = result.stdout.split('\n').map((line) => line.trim()).filter(Boolean);
+  try {
+    return urls.length > 0 && urls.every((url) => sameRemote(url, approvedUrl));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Make sure a usable clone exists: reuse a valid one, otherwise clone from the
  * approved URL. Existing local changes are reported, never touched.
  * @param {{ repoPath: string, url: string, name: string, dryRun?: boolean }} input
@@ -180,7 +198,7 @@ export async function ensureClone(input) {
   const state = await inspectRepo(input.repoPath);
 
   if (state.isRepo) {
-    if (!state.originUrl || !sameRemote(state.originUrl, input.url)) {
+    if (!state.originUrl || !sameRemote(state.originUrl, input.url) || !(await pushUrlMatches(input.repoPath, input.url))) {
       throw new AutoDevError(
         ErrorCodes.REPO_URL_NOT_APPROVED,
         `The existing clone of "${input.name}" points at a different remote than the approved URL. It was left untouched.`,
@@ -376,12 +394,13 @@ export async function diffAgainstBase(repoPath, baseBranch) {
   const mergeBase = (await git(['merge-base', `origin/${baseBranch}`, 'HEAD'], repoPath)).stdout.trim();
   return withWorktreeIndex(repoPath, async (env) => {
     const base = ['diff', '--cached', '--no-ext-diff', '--no-color', '--find-renames'];
-    const patch = (await runChecked('git', [...base, '--unified=3', mergeBase, '--'], {
+    const patchRun = await runChecked('git', [...base, '--unified=3', mergeBase, '--'], {
       cwd: repoPath,
       env: { ...process.env, ...env },
       maxOutputBytes: 8 * 1024 * 1024,
       redactOutput: false,
-    })).stdout;
+    });
+    const patch = patchRun.stdout;
     const numstat = (await git([...base, '--numstat', mergeBase, '--'], repoPath, { env })).stdout;
     const files = numstat
       .split('\n')
@@ -400,6 +419,8 @@ export async function diffAgainstBase(repoPath, baseBranch) {
         deleted: files.reduce((sum, file) => sum + (file.deleted ?? 0), 0),
       },
       patch,
+      // True when the diff was larger than could be read; a review of it is incomplete.
+      patchIncomplete: patchRun.truncated,
     };
   });
 }
@@ -429,10 +450,15 @@ export async function commitAll(input) {
 
 /**
  * Push the feature branch. Never forced, never a protected branch.
- * @param {{ repoPath: string, name: string, branch: string, protectedBranches: string[] }} input
+ * @param {{ repoPath: string, name: string, branch: string, protectedBranches: string[], approvedUrl: string }} input
  */
 export async function pushBranch(input) {
   assertBranchName(input.branch);
+  if (!(await pushUrlMatches(input.repoPath, input.approvedUrl))) {
+    throw new AutoDevError(ErrorCodes.REPO_URL_NOT_APPROVED, `The clone of "${input.name}" would push somewhere other than the approved URL. Nothing was pushed.`, {
+      details: { repository: input.name },
+    });
+  }
   if (isProtectedBranch(input.branch, input.protectedBranches)) {
     throw new AutoDevError(ErrorCodes.POLICY_PROHIBITED, `Refusing to push protected branch "${input.branch}".`);
   }

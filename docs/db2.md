@@ -60,10 +60,14 @@ node scripts\autodev.mjs db2 query    --sql "SELECT D.RATE FROM APP.DISCOUNT D W
 
 ## What the guard accepts and rejects
 
-Accepted: one `SELECT`, or `WITH … SELECT`, with explicit `JOIN`s, subqueries, and tables written as `SCHEMA.TABLE` where the schema is mapped to the project (or is `SYSCAT`, `SYSIBM`, `SYSSTAT`).
+Accepted: one `SELECT`, or `WITH … SELECT`, with explicit `JOIN`s, subqueries, and tables written as `SCHEMA.TABLE` where the schema is mapped to the project.
+
+The catalog (`SYSCAT`, `SYSIBM`, `SYSSTAT`) is readable only through `db2 tables` and `db2 describe`, which run fixed queries filtered to the project's schemas. Free-form queries cannot read it, because catalog views expose other schemas' definitions and sampled column values.
 
 Rejected with `SQL_REJECTED`:
 
+- sequence expressions (`NEXT VALUE FOR`), which change state;
+- a function called through a schema that is not mapped to the project;
 - any data-change or DDL keyword (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`, `CREATE`, `ALTER`, `DROP`, `GRANT`, `CALL`, `SET`, …), `SELECT INTO`, `FOR UPDATE`, `FINAL/NEW/OLD TABLE`, table functions;
 - more than one statement;
 - an unqualified table, a schema not mapped to the project, or a qualifier that is neither a mapped schema nor an alias defined in the query;

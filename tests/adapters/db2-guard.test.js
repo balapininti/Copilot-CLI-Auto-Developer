@@ -59,9 +59,26 @@ describe('db2 guard: accepted statements', () => {
     accept('SELECT Q.ID FROM (SELECT ID FROM APP.ORDERS) AS Q WHERE Q.ID > 5');
   });
 
-  test('accepts the catalog schemas (SYSCAT, SYSIBM) without listing them', () => {
-    assert.deepEqual(accept('SELECT TABNAME FROM SYSCAT.TABLES WHERE TABSCHEMA = ?', ['APP']).schemas, ['SYSCAT']);
-    accept('SELECT 1 FROM SYSIBM.SYSDUMMY1');
+  test('catalog schemas are readable only by the introspection helpers (allowCatalog), not by free-form queries', () => {
+    const catalog = { allowedSchemas: ['APP'], allowCatalog: true };
+    assert.deepEqual(validateSelect('SELECT TABNAME FROM SYSCAT.TABLES WHERE TABSCHEMA = ?', { ...catalog, params: ['APP'] }).schemas, ['SYSCAT']);
+    validateSelect('SELECT 1 FROM SYSIBM.SYSDUMMY1', catalog);
+    for (const sql of [
+      "SELECT COLVALUE FROM SYSCAT.COLDIST WHERE TABSCHEMA = 'PAYROLL'",
+      'SELECT TEXT FROM SYSCAT.VIEWS',
+      'SELECT 1 FROM SYSIBM.SYSDUMMY1',
+    ]) {
+      assert.throws(() => validateSelect(sql, { allowedSchemas: ['APP'] }), /not mapped to this project/);
+    }
+  });
+
+  test('FROM inside EXTRACT/TRIM/SUBSTRING is not mistaken for a table reference', () => {
+    accept('SELECT EXTRACT(YEAR FROM T.CREATED) FROM APP.T T');
+    accept("SELECT TRIM(BOTH ' ' FROM T.NAME) FROM APP.T T");
+  });
+
+  test('an alias cannot stand in for a schema in a function call', () => {
+    assert.throws(() => validateSelect('SELECT OTHER.F(OTHER.X) FROM APP.T OTHER', { allowedSchemas: ['APP'] }), /function "OTHER\.F"/);
   });
 
   test('a string literal containing DELETE (or ; -- ? and quotes) is still accepted', () => {
