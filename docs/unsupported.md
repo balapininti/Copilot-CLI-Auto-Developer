@@ -9,8 +9,9 @@ Nothing in this framework has been run against a real corporate Agility, Bitbuck
 | Core rules: scoping, approvals, gates, redaction, audit chain, manifest validation, SQL guard, query scoping, hook policy | Unit tests (`npm test`) |
 | Both workflows end to end, including crash recovery and deduplication | `autodev demo e2e` against the local mock server and a local git remote |
 | Git behaviour (clone, dirty-tree preservation, release-branch checks, branching, commit, push) | Real `git` against local repositories |
-| Browser automation | A local Playwright smoke test against a page served on 127.0.0.1 |
-| Runs on Windows and Linux, Node 22 and 24; PowerShell scripts parse on Windows PowerShell 5.1 and PowerShell 7; Credential Manager read path | The CI workflow on GitHub-hosted runners |
+| Browser automation | A Playwright smoke test against a page served on 127.0.0.1, run with the real Microsoft Edge on GitHub-hosted Windows and Linux runners (navigation, text, fill, password-field refusal, blocked navigation, screenshot) |
+| Runs on Windows and Linux, Node 22 and 24, including the end-to-end run | The CI workflow on GitHub-hosted runners |
+| PowerShell scripts parse on Windows PowerShell 5.1 and PowerShell 7; `Bootstrap.ps1 -CheckOnly` runs; a secret stored in Windows Credential Manager is read back through `Get-AutoDevCredential.ps1` and `src/core/secrets.js` | The CI workflow on a Windows runner. `Start-AutoDev.ps1`, `Set-AutoDevCredential.ps1` and `Register-MonitoringTask.ps1` are parsed and linted there but have **not** been executed. |
 
 ## What has NOT been verified
 
