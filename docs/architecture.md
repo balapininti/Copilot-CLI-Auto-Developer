@@ -16,7 +16,7 @@ Copilot CLI session
       |
       v   node scripts/autodev.mjs <command>     one JSON result envelope per call
 autodev CLI   src/cli
-  workflow    src/workflow     run state and gates, pull requests, learning, onboarding, discovery
+  workflow    src/workflow     run state and gates, pull requests, learning, scenarios, onboarding, discovery
   monitoring  src/monitoring   incident model, correlation, worker, handoff queue
   adapters    src/adapters     agility, bitbucket (git + REST), db2, java, testing, review, splunk, dynatrace, browser
   core        src/core         errors, results, redaction, logging, state, audit, approvals,
@@ -37,7 +37,7 @@ A second entry point does not involve Copilot at all: Windows Task Scheduler run
 | `code-reviewer` | Independent review; records the verdict that gates the PR | read, search, execute |
 | `test-validator` | Runs and interprets test stages | read, search, execute |
 
-Capabilities live in skills, not agents, so nothing is duplicated: `project-context`, `agility`, `bitbucket`, `db2`, `java-spring`, `browser-playwright`, `testing`, `code-review`, `splunk`, `dynatrace`, `authentication`, `learning-management`, `incident-correlation`, `root-cause-analysis`, `workflow-handoff`.
+Capabilities live in skills, not agents, so nothing is duplicated: `project-context`, `agility`, `bitbucket`, `db2`, `java-spring`, `browser-playwright`, `testing`, `code-review`, `splunk`, `dynatrace`, `authentication`, `learning-management`, `incident-correlation`, `root-cause-analysis`, `workflow-handoff`, `e2e-scenarios`.
 
 ## Workspace
 
@@ -48,9 +48,10 @@ C:\DevWorkspace\
     project.yaml               mappings and policies; names of secrets, never values
     guidelines\*.md            the team's standards
     knowledge\<skill>\approved.md   learnings, written only after approval
+    scenarios\<name>.json       baseline end-to-end journeys, written only after approval
     repos\<repo-name>\         clones the agent works in
   state\                       written only by the autodev CLI
-    approvals\ audit\ runs\ evidence\ incidents\ monitor\ handoff\ learning\ sessions\
+    approvals\ audit\ runs\ evidence\ incidents\ monitor\ handoff\ learning\ scenarios\ sessions\
 ```
 
 Skills are generic. Everything specific to a project is under `projects/<id>/` and is loaded only for that project.

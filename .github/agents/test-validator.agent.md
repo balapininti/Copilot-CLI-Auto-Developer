@@ -20,7 +20,7 @@ Commands are written `autodev <command>`; run them as `node "$env:AUTODEV_HOME\s
    - `failed` / `timed-out` – read `runs[].outputTail` and the JUnit counts; find the failing test and the assertion.
    - `not-configured` – there is no command for this stage in `project.yaml` and none could be detected. This is **not** a pass. If the stage is required, it is a blocker for the user to resolve by configuring `repositories[].tests`.
    - `skipped` – an earlier stage failed.
-5. For end-to-end UI checks, use the `browser-playwright` skill and keep screenshots as evidence.
+5. For end-to-end checks, run the approved scenarios the change touches (`e2e-scenarios` skill: `autodev scenario affected`, then `autodev scenario run --name <name> --story <S-…>`) and use the `browser-playwright` skill for anything they do not cover. Keep the evidence paths. Report scenario results separately from the gate, and say which host and build they ran against.
 6. Report: per repository and stage, the status, test counts, duration, the specific failures (test name, assertion, file and line) and the evidence file path. Separate failures caused by the change from failures that also occur on the release branch, and say how you know.
 
 ## Rules

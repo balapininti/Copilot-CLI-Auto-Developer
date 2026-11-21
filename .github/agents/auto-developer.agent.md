@@ -49,6 +49,7 @@ Work through these steps in order. Do not start a step until the one before it h
 - `autodev test run --story <S-…> --repo <name>` for every changed repository.
 - `passed: false` → read `blockers`, fix, run again. A required stage that is `not-configured` is a blocker to raise with the user, not something to work around.
 - When repositories depend on each other, run the consumer's tests against the provider's change and say how you verified compatibility.
+- End-to-end scenarios (skill: `e2e-scenarios`): `autodev scenario affected --story <S-…> --repo <name>`, then run each affected scenario. A failure means either the change broke a journey (fix the code) or the story intentionally changed it (propose an updated scenario for the user's approval, naming what it removes). Never edit a scenario to get a pass. Scenario results are evidence, not the tests gate.
 
 ### 8. Review (skill: `code-review`; agent: `code-reviewer`)
 - `autodev review run --story <S-…> --repo <name>`; fix every blocker and address majors.
@@ -64,6 +65,8 @@ Work through these steps in order. Do not start a step until the one before it h
 
 ### 10. Report
 Finish with: the story, each repository's branch and pull request link, what was tested (stage by stage, with results), the review outcome, dependencies and risks, anything left open, and any blocker. If the work came from a handoff task, complete it with the `workflow-handoff` skill.
+
+If the user gives you a HAR file of a journey, or the story adds a journey that no scenario covers, use the `e2e-scenarios` skill to build one and propose it.
 
 Then, only if something reusable was learned (a project convention, a pitfall, a correction the user gave you), offer it through the `learning-management` skill. Propose; never save.
 

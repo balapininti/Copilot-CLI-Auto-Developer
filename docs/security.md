@@ -22,6 +22,7 @@ This document says what the framework enforces, how, and where the limits are.
 | A change too large to read in full cannot pass the automated review | `adapters/review/checks.js` (`diff-not-fully-reviewed`) |
 | Secrets never in manifests, logs, results, tickets or evidence | `core/manifest.js` (refuses), `core/redact.js` (masks), `adapters/review/checks.js` (blocks commits) |
 | No learning without approval of the exact text | `workflow/learning.js`, `core/knowledge-integrity.js` |
+| No baseline end-to-end scenario added or changed without approval; nothing sensitive kept from a HAR | `workflow/scenarios.js` |
 | Tamper-evident audit trail | `core/audit.js` (hash chain; `autodev audit verify`) |
 
 ## Approvals
@@ -34,7 +35,7 @@ This document says what the framework enforces, how, and where the limits are.
 
 Inside a session the workspace is fixed too: a command given a `--workspace` that differs from the session's is refused (`PROJECT_SCOPE_VIOLATION`), because another workspace would bring its own manifests, policies and approval store.
 
-Actions that are gated: creating a pull request (which includes the push), creating a defect, commenting on or changing the status of a ticket, authorizing a schema change, starting development on a queued defect, and saving a learning. Policies are `approval-required`, `allowed` or `prohibited` per project; saving a learning is always approval-required.
+Actions that are gated: creating a pull request (which includes the push), creating a defect, commenting on or changing the status of a ticket, authorizing a schema change, starting development on a queued defect, saving a learning, and adding or changing an end-to-end scenario. Policies are `approval-required`, `allowed` or `prohibited` per project; saving a learning and writing a scenario are always approval-required.
 
 ## Learning: enforced at the file boundary
 
@@ -45,6 +46,8 @@ Prompt instructions are not relied on.
 - The hook denies direct edits to knowledge files.
 
 So a learning written around the gate, by an agent or by anyone else, is inert.
+
+End-to-end scenarios (`projects/<id>/scenarios/`) follow the same model, for a different reason: a scenario is what a change is judged against, so an agent that could rewrite one could hide a regression it had just caused. `scenario apply` is the only writer, the approval is bound to the exact document and to a summary that names every expectation an update removes, and `scenario run` refuses a file that does not match its integrity record. A HAR handed to `scenario import` is reduced to methods, templated paths, status codes and the field names of bodies; headers, cookies, tokens, query values and response values are never written anywhere, and the HAR is not copied. See [e2e-scenarios.md](e2e-scenarios.md).
 
 ## The preToolUse hook
 

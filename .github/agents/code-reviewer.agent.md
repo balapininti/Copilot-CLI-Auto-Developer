@@ -23,6 +23,7 @@ Commands are written `autodev <command>`; run them as `node "$env:AUTODEV_HOME\s
    - **Performance**: queries in loops, missing limits, unbounded collections, blocking calls on hot paths.
    - **Data safety**: schema or migration changes (need explicit authorization), destructive statements, data written without validation.
    - **Tests**: do the tests actually exercise the change and its failure cases? Would they fail without it? `autodev run show --story <S-…>` shows the recorded test results; a required stage that did not run is a fail.
+   - **End-to-end scenarios**: `autodev scenario affected --story <S-…> --repo <name>` lists the approved journeys this change touches. Were they run, against a build that contains the change? If the author proposed a scenario update (`autodev scenario list`), does the story justify every expectation it removes? A scenario weakened to fit the change is a blocking finding.
 5. **Verdict.** Classify each finding as BLOCKING or ADVISORY, with file, line and a concrete reason.
    - Any blocking finding → `autodev review record --story <S-…> --repo <name> --verdict fail --reviewer code-reviewer --notes "<the blocking findings, briefly>"`
    - None → `autodev review record --story <S-…> --repo <name> --verdict pass --reviewer code-reviewer --notes "<what you verified>"`

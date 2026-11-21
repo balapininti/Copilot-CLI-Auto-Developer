@@ -78,7 +78,7 @@ function isLoopbackUrl(raw) {
 const ANY_URL = /https?:\/\/[^\s'"]+/gi;
 
 const WRITE_VERB = /(>>?|\b(Set-Content|Add-Content|Out-File|New-Item|Remove-Item|Move-Item|Copy-Item|Rename-Item|Clear-Content|WriteAllText|writeFileSync|appendFileSync|unlinkSync|rmSync)\b|\bsed\s+-i|(^|[\s;&|(])(rm|del|erase|mv|move|cp|copy|tee|touch|truncate|ren|rmdir|rd|mkdir|md|echo|printf)\s)/i;
-const PROTECTED_MENTION = /approved\.md|project\.ya?ml|[\\/]knowledge[\\/]|[\\/]guidelines[\\/]|[\\/]state[\\/](approvals|audit|learning|sessions|handoff|runs|incidents|monitor|evidence)\b|[\\/]\.github[\\/](hooks|agents|skills)[\\/]/i;
+const PROTECTED_MENTION = /approved\.md|project\.ya?ml|[\\/]knowledge[\\/]|[\\/]guidelines[\\/]|[\\/]scenarios[\\/]|[\\/]state[\\/](approvals|audit|learning|scenarios|sessions|handoff|runs|incidents|monitor|evidence)\b|[\\/]\.github[\\/](hooks|agents|skills)[\\/]/i;
 
 /**
  * @param {string} target absolute path
@@ -116,6 +116,9 @@ export function protectedPathReason(target, roots) {
     }
     if (/^project\.ya?ml$/i.test(area)) {
       return 'project.yaml (mappings and policies) is maintained by people. Report what is missing instead of editing it.';
+    }
+    if (area === 'scenarios') {
+      return 'End-to-end scenarios are the baseline that changes are judged against. They are changed only through "autodev scenario propose" and a person\'s approval.';
     }
     if (area === 'guidelines') {
       return 'Project guidelines are maintained by the team. Propose changes to the user instead of editing them.';

@@ -14,6 +14,7 @@ How the framework works, in pictures. GitHub renders these Mermaid diagrams in p
 10. [Incident lifecycle](#10-incident-lifecycle)
 11. [Defect to development handoff](#11-defect-to-development-handoff)
 12. [Learning](#12-learning)
+13. [End-to-end scenarios from a HAR](#13-end-to-end-scenarios-from-a-har)
 
 ## 1. The system on one page
 
@@ -64,7 +65,7 @@ There is no server, no hosted component and no MCP. Copilot supplies the reasoni
 flowchart TB
     subgraph md["Markdown: what Copilot reads (.github)"]
         agents["Agents<br/>auto-developer, incident-investigator,<br/>code-reviewer, test-validator"]
-        skills["15 skills<br/>one capability each, generic"]
+        skills["16 skills<br/>one capability each, generic"]
         hook["preToolUse hook<br/>denies tool calls that go around the gates"]
     end
 
@@ -373,4 +374,30 @@ flowchart LR
     integ --> load
     load -- yes --> use["Given to the agent with the guidelines"]
     load -- "no: edited by hand<br/>or by the agent" --> reject["Ignored and reported as rejected"]
+```
+
+## 13. End-to-end scenarios from a HAR
+
+A person records one journey in their browser. The framework keeps a sanitized outline, the agent uses the code base to work out the rest, and a person approves the result. Details are in [e2e-scenarios.md](e2e-scenarios.md).
+
+```mermaid
+flowchart TB
+    rec(["Person runs one journey in the browser<br/>and exports a HAR"]) --> imp["autodev scenario import<br/>keeps pages, API calls and body shapes.<br/>Drops headers, cookies, tokens and all values"]
+    imp --> outline["Outline: WHAT the journey did"]
+    outline --> agent["Agent reads the code base:<br/>which screen makes each call,<br/>which control triggers it, stable selectors"]
+    agent --> trial["autodev scenario run --file<br/>trial in Edge until it passes"]
+    trial -- fails --> agent
+    trial -- passes --> propose["autodev scenario propose<br/>approval bound to the exact document"]
+    propose --> person{"Person reviews<br/>in their own terminal"}
+    person -- deny --> nothing["Nothing is written"]
+    person -- approve --> apply["autodev scenario apply"]
+    apply --> base[("projects/#lt;id#gt;/scenarios/#lt;name#gt;.json<br/>plus an integrity record")]
+
+    story(["Later: a story changes the code"]) --> affected["autodev scenario affected<br/>scenarios whose code references changed"]
+    base --> affected
+    affected --> run["autodev scenario run<br/>steps, expected API calls, no server errors"]
+    run -- passes --> evidence["Evidence for the reviewer"]
+    run -- fails --> why{"Why?"}
+    why -- "the change broke the journey" --> fix["Fix the code"]
+    why -- "the story changed the journey on purpose" --> propose
 ```

@@ -17,13 +17,14 @@ Nothing in this framework has been run against a real corporate Agility, Bitbuck
 
 | Integration | Status | What to do first |
 |---|---|---|
-| **Copilot CLI agents and hooks** | Skill discovery is confirmed: Copilot CLI 1.0.114 (`copilot skill list`, run from this folder on macOS) lists all 15 skills. Agent selection (`--agent`) and the preToolUse hook need a signed-in session and have **not** been exercised; they are validated against the documented file formats only. Nothing was run on Windows outside CI. | In a session run `/agent` and `/skills list`; ask the agent to `git push` and confirm the hook refuses. |
+| **Copilot CLI agents and hooks** | Skill discovery is confirmed: Copilot CLI 1.0.114 (`copilot skill list`, run from this folder on macOS) listed the 15 skills that existed then; the `e2e-scenarios` skill was added later and is validated against the file format only. Agent selection (`--agent`) and the preToolUse hook need a signed-in session and have **not** been exercised; they are validated against the documented file formats only. Nothing was run on Windows outside CI. | In a session run `/agent` and `/skills list`; ask the agent to `git push` and confirm the hook refuses. |
 | **Digital.ai Agility** | Written to the documented `rest-1.v1` JSON contract; exercised against the mock only. | `autodev agility verify`, then `autodev agility story <a real story>`. Confirm your custom field names in `agility.fields`. |
 | **Agility through the browser session** | The code path exists (requests through the signed-in Edge profile). Never run against a real SSO. | `autodev auth login --service agility`, then `autodev agility verify` with no token set. |
 | **Bitbucket pull request API** | Data Center REST 1.0 and Cloud REST 2.0 request shapes; mock only. | `autodev pr create --dry-run`, then a real PR on a scratch repository. |
 | **Splunk** | `services/search/jobs/export`; mock only. | `autodev splunk search --minutes 5` with a token scoped to one index. |
 | **Dynatrace** | Environment API v2 problems and metrics; mock only. | `autodev dynatrace problems --minutes 30`. |
 | **DB2** | Guard, limits and redaction are unit-tested. The live driver path (`ibm_db`) has never connected to a database. | Install the driver (`docs/db2.md`), then `autodev db2 tables --schema <S>`. |
+| **End-to-end scenarios** | HAR import, validation, the approval gate and expectation checks are unit-tested. A scenario was replayed in a real browser against a small page served on 127.0.0.1. Never run with a HAR from a real application, behind SSO, or by an agent in a Copilot session; how well an agent maps a recording to selectors in your code base is untested. | Record a short journey, `autodev scenario import`, and review the outline before asking the agent to complete it. |
 | **Corporate proxy, CA and VPN behaviour** | Follows Node's and git's documented settings; not run on a corporate network. | `autodev doctor`, then `docs/corporate-network.md`. |
 
 Treat each row as unverified until a real, authorized call through it has succeeded in your environment. When one does, record it for your team.

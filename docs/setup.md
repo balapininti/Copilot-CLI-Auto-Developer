@@ -6,7 +6,7 @@ From an empty Windows workstation to a first story, in order. Allow about an hou
 
 ## How configuration works
 
-**You never edit a skill.** The 15 skills and 4 agents are generic and identical for every team. A skill learns your URLs, boards, repositories, schemas and process from five places that you set up once per project:
+**You never edit a skill.** The 16 skills and 4 agents are generic and identical for every team. A skill learns your URLs, boards, repositories, schemas and process from five places that you set up once per project:
 
 | What the skills need to know | Where you put it | How |
 |---|---|---|
@@ -280,7 +280,7 @@ The launcher validates the project, checks that the agents and skills are discov
 First-session checks, because these have not been exercised in a signed-in session yet:
 
 1. `/agent` lists `auto-developer`, `incident-investigator`, `code-reviewer`, `test-validator`.
-2. `/skills list` shows the 15 skills.
+2. `/skills list` shows the 16 skills.
 3. Ask the agent to run `git push`. The hook should refuse it.
 
 Then give it work:
@@ -332,7 +332,7 @@ The framework does not work out by itself how to start, deploy or test your appl
 | Where the running application is, for browser checks | `browser.allowedHosts` in `project.yaml` |
 | How your team does end-to-end testing: environments, test data, test users, what must be covered | `guidelines\testing-standards.md` |
 
-There are two mechanisms, and they do different jobs.
+There are three mechanisms, and they do different jobs.
 
 **1. Your existing end-to-end suite, as a gated stage.** `autodev test run` runs the stages `compile`, `static`, `unit`, `integration`, `contract`, `regression` and `e2e`, in that order, using the commands you configured. The `e2e` command is whatever your team already uses (a Maven profile, a Playwright, Cypress or Selenium suite, an npm script). The command is responsible for starting the application or pointing at an environment where it runs.
 
@@ -359,7 +359,9 @@ browser:
   allowedHosts: [orders-dev.corp.example, login.corp.example]   # the app under test, and your identity provider
 ```
 
-These checks are evidence for you and the reviewer. They are **not** part of the tests gate; only `test run` is.
+**3. Baseline scenarios built from a recording.** You run one journey in your browser, export a HAR, and give it to the agent. The framework keeps a sanitized outline of the calls the journey made; the agent uses the code base to work out the screens and selectors, tries the scenario in Edge, and proposes it for your approval. Approved scenarios are kept in `projects\<id>\scenarios\`, are re-run when a change touches the code they cover, and can only be changed with your approval. See [e2e-scenarios.md](e2e-scenarios.md).
+
+Mechanisms 2 and 3 are evidence for you and the reviewer. They are **not** part of the tests gate; only `test run` is.
 
 What the framework does not do:
 
@@ -391,6 +393,7 @@ No skill has its own configuration file. This table shows what must be in place 
 | root-cause-analysis | | | `services[]`, `repositories[]` |
 | workflow-handoff | | | `agility.defectScope`, `monitoring.incidentPolicy` |
 | learning-management | | | `learning.persistence` |
+| e2e-scenarios | | | `browser.allowedHosts` (the application under test), `repositories[]` |
 
 ## Setting up the rest of the team
 

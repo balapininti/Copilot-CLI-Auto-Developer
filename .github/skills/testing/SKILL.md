@@ -38,4 +38,5 @@ The result is tied to the exact code tested. Change any file afterwards and the 
 - Flaky test? Report it as flaky with the runs that showed it. Do not re-run until green and present only that.
 - For changes spanning repositories, test the consumer against the provider's change and state how compatibility was verified.
 - End-to-end UI checks use the `browser-playwright` skill; attach the screenshot paths to your report.
+- The project's baseline journeys are kept as approved scenarios (`e2e-scenarios` skill). Run the ones a change touches and report them as evidence alongside the gate, never in place of it.
 - Keep the evidence path in your final report. Do not paste raw logs.

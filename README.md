@@ -63,7 +63,7 @@ Prerequisites: Windows 10/11, PowerShell 6 or later (a Copilot CLI requirement),
 C:\DevWorkspace\
   automation\                       this repository
     .github\agents\                 auto-developer, incident-investigator, code-reviewer, test-validator
-    .github\skills\<name>\SKILL.md  15 shared skills
+    .github\skills\<name>\SKILL.md  16 shared skills
     .github\hooks\autodev.json      preToolUse hook
     scripts\                        autodev.mjs, Bootstrap.ps1, Start-AutoDev.ps1, …
     src\core\  src\adapters\  src\monitoring\  src\workflow\  src\cli\
@@ -88,6 +88,7 @@ Copilot CLI discovers agents and skills from `.github\agents` and `.github\skill
 | The story's release branch is the base; a missing one is a blocker | Verified on the remote; no fallback to the default branch |
 | A PR only after tests, automated review and independent review pass for the exact code | Gate results are bound to a git tree id |
 | No PR, ticket, comment, schema change or start of defect work without the configured approval | Approvals bound to a SHA-256 of the exact payload, single-use, decided at a real terminal |
+| A baseline end-to-end scenario cannot be changed without approval | Only `scenario apply` writes one; an edited scenario fails its integrity check and is not run as a baseline; an update names every expectation it removes |
 | No learning without approval of the exact text | Only `learn apply` writes knowledge; unapproved files fail an integrity check and are never loaded |
 | DB2 is read-only and scoped | SQL guard, row and time limits, column redaction; no write path |
 | Telemetry queries are scoped and bounded | Explicit indexes and entity selectors, capped windows and results |
@@ -113,6 +114,7 @@ node scripts\autodev.mjs help
 | Access | `auth status/login`, `agility verify/boards/story/comment/status` |
 | Code | `repo status/prepare/diff/commit`, `java detect`, `db2 tables/describe/query`, `browser run` |
 | Quality | `test run`, `review run/record`, `run show`, `pr create` |
+| End-to-end scenarios | `scenario import/run/propose/apply/list/show/affected` |
 | Monitoring | `splunk search`, `dynatrace problems/metrics`, `monitor run/status/verify-resolution`, `incident list/show/classify/link-pr/close`, `handoff list/authorize/next/complete` |
 | Governance | `approvals list/show/review`, `learn propose/apply/list/verify`, `audit show/verify` |
 
@@ -126,6 +128,7 @@ node scripts\autodev.mjs help
 | [docs/security.md](docs/security.md) | What is enforced and where, approvals, the hook, threat model and limits |
 | [docs/unsupported.md](docs/unsupported.md) | Verification status of every integration; features deliberately not supported |
 | [docs/onboarding.md](docs/onboarding.md) | Onboarding questions, the manifest, what to do afterwards |
+| [docs/e2e-scenarios.md](docs/e2e-scenarios.md) | Building baseline end-to-end scenarios from a recorded HAR, running them, and keeping them current as the code changes |
 | [docs/monitoring.md](docs/monitoring.md) | The monitoring worker, scheduling, incident lifecycle, handoff |
 | [docs/corporate-network.md](docs/corporate-network.md) | VPN, proxies, certificate authorities, SSO, allowlists, troubleshooting |
 | [docs/secrets.md](docs/secrets.md) | Where secrets live, how to store and rotate them, least-privilege guidance |

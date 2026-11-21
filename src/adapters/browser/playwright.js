@@ -165,7 +165,28 @@ export async function openBrowser(options) {
 }
 
 const STEP_TIMEOUT_MS = 30_000;
+const ASSERT_TIMEOUT_MS = 5_000;
 const MAX_TEXT = 20_000;
+
+/**
+ * Poll a condition until it holds or the time runs out.
+ * @param {() => boolean | Promise<boolean>} condition
+ * @param {number} timeoutMs
+ */
+async function eventually(condition, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    let holds = false;
+    try {
+      holds = await condition();
+    } catch {
+      // the element may not exist yet; keep waiting until the deadline
+    }
+    if (holds) return true;
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
 
 /**
  * Run a list of browser steps and return what each produced.
@@ -226,6 +247,7 @@ export async function runSteps(session, steps, options) {
  */
 async function runStep(page, step, options) {
   const timeout = Math.min(Number(step.timeoutMs) || STEP_TIMEOUT_MS, 120_000);
+  const assertTimeout = Math.min(Number(step.timeoutMs) || ASSERT_TIMEOUT_MS, 120_000);
   const need = (/** @type {string} */ key) => {
     if (typeof step[key] !== 'string' || step[key].length === 0) {
       throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `Step "${step.action}" needs "${key}".`);
@@ -282,19 +304,25 @@ async function runStep(page, step, options) {
       await page.screenshot({ path: file, fullPage: step.fullPage === true, timeout });
       return { file, bytes: fs.statSync(file).size };
     }
+    // Assertions wait: what they check is usually the result of a request the
+    // previous step started, and that has not finished when the step returns.
     case 'assertVisible': {
-      const visible = await page.locator(need('selector')).first().isVisible();
-      if (!visible) throw new Error(`Expected "${step.selector}" to be visible.`);
+      const locator = page.locator(need('selector')).first();
+      if (!(await eventually(() => locator.isVisible(), assertTimeout))) throw new Error(`Expected "${step.selector}" to be visible.`);
       return null;
     }
     case 'assertText': {
-      const text = await page.locator(step.selector ?? 'body').first().innerText({ timeout });
-      if (!text.includes(need('contains'))) throw new Error(`Expected text to contain "${step.contains}".`);
+      const locator = page.locator(step.selector ?? 'body').first();
+      const contains = need('contains');
+      const found = await eventually(async () => (await locator.innerText({ timeout: assertTimeout })).includes(contains), assertTimeout);
+      if (!found) throw new Error(`Expected text to contain "${step.contains}".`);
       return null;
     }
-    case 'assertUrl':
-      if (!page.url().includes(need('contains'))) throw new Error(`Expected the URL to contain "${step.contains}".`);
+    case 'assertUrl': {
+      const contains = need('contains');
+      if (!(await eventually(() => page.url().includes(contains), assertTimeout))) throw new Error(`Expected the URL to contain "${step.contains}".`);
       return null;
+    }
     default:
       throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `Unknown browser step "${step.action}".`);
   }

@@ -15,7 +15,7 @@
     "autodev": "node scripts/autodev.mjs",
     "test": "node --test --test-force-exit \"tests/**/*.test.js\"",
     "test:coverage": "node --test --test-force-exit --experimental-test-coverage \"tests/**/*.test.js\"",
-    "test:browser": "node --test --test-force-exit tests/browser/smoke.test.js",
+    "test:browser": "node --test --test-force-exit \"tests/browser/*.test.js\"",
     "lint": "eslint .",
     "typecheck": "tsc -p jsconfig.json",
     "check": "npm run lint && npm run typecheck && npm test",

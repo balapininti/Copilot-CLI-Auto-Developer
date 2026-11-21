@@ -21,6 +21,7 @@ import { resolveWorkspace } from '../core/workspace.js';
 import { integrationCommands } from './commands/integrations.js';
 import { monitoringCommands } from './commands/monitoring.js';
 import { projectCommands } from './commands/project.js';
+import { scenarioCommands } from './commands/scenario.js';
 
 /** @type {Record<string, { type: 'string' | 'boolean', multiple?: boolean }>} */
 const OPTIONS = {
@@ -84,6 +85,12 @@ const OPTIONS = {
   'release-branch': { type: 'string' },
   'max-rows': { type: 'string' },
   scope: { type: 'string' },
+  har: { type: 'string' },
+  host: { type: 'string' },
+  file: { type: 'string' },
+  'base-url': { type: 'string' },
+  'keep-request-values': { type: 'boolean' },
+  draft: { type: 'boolean' },
 };
 
 /**
@@ -101,7 +108,7 @@ const OPTIONS = {
  */
 
 /** @type {Record<string, Command>} */
-export const COMMANDS = { ...projectCommands, ...integrationCommands, ...monitoringCommands };
+export const COMMANDS = { ...projectCommands, ...integrationCommands, ...monitoringCommands, ...scenarioCommands };
 
 function helpText() {
   const names = Object.keys(COMMANDS).sort();
