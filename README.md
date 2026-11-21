@@ -26,6 +26,8 @@ node scripts\autodev.mjs demo e2e    # both workflows, end to end, against local
 
 ## Set up on a Windows workstation
 
+The short version is below; [docs/setup.md](docs/setup.md) is the full walkthrough and [docs/diagrams.md](docs/diagrams.md) shows how the pieces fit.
+
 ```powershell
 # 1. Put this repository at <workspace>\automation, e.g. C:\DevWorkspace\automation
 .\scripts\Bootstrap.ps1              # checks prerequisites, installs dependencies, creates projects\ and state\
@@ -118,6 +120,8 @@ node scripts\autodev.mjs help
 
 | Document | Contents |
 |---|---|
+| [docs/setup.md](docs/setup.md) | Step-by-step setup: where URLs, tokens, mappings and your team's process go; verifying each integration; end-to-end testing |
+| [docs/diagrams.md](docs/diagrams.md) | Architecture and flow diagrams: layers, configuration, ticket to PR, gates, approvals, authentication, monitoring, handoff, learning |
 | [docs/architecture.md](docs/architecture.md) | Layers, agents and skills, discovery, design principles, both workflows |
 | [docs/security.md](docs/security.md) | What is enforced and where, approvals, the hook, threat model and limits |
 | [docs/unsupported.md](docs/unsupported.md) | Verification status of every integration; features deliberately not supported |

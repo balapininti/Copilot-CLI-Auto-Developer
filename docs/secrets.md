@@ -3,11 +3,11 @@
 This page says where the framework's secrets live, where they must never
 live, and how to store, rotate and revoke them.
 
-**Not verified.** The PowerShell scripts described here
-(`scripts\Set-AutoDevCredential.ps1`, `scripts\ps\Get-AutoDevCredential.ps1`)
-were written and reviewed on a machine without PowerShell and have not yet
-been run on Windows. Verify them once with the steps under
-[Store, list, remove](#store-list-remove) before relying on them.
+**Partly verified.** Reading a secret from Windows Credential Manager
+(`scripts\ps\Get-AutoDevCredential.ps1`) is exercised by CI on a Windows
+runner. `scripts\Set-AutoDevCredential.ps1` is parsed and linted there but has
+not been executed. Verify it once with the steps under
+[Store, list, remove](#store-list-remove) before relying on it.
 
 ## Where a secret is looked up
 

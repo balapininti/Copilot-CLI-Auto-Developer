@@ -4,6 +4,8 @@
 
 GitHub Copilot CLI supplies the reasoning. This framework supplies everything around it that must not be left to reasoning: which project is in scope, how each system is reached and authenticated, what may be read, what needs a person's approval before it is written, and what has to be true before a pull request can exist. Agents and skills are Markdown; every action they take goes through one local Node.js command (`autodev`) that enforces the rules in code. There is no MCP server anywhere.
 
+Diagrams of everything on this page are in [diagrams.md](diagrams.md). To install and configure, see [setup.md](setup.md).
+
 ## Layers
 
 ```
