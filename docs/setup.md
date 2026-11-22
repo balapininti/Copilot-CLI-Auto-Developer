@@ -450,7 +450,7 @@ The task runs as you, without elevation, and never opens a sign-in window. Detai
 
 ## Step 13: Let it learn, with your approval
 
-Learning is always on, and always needs your approval. Nothing is saved because an agent decided it should be, and the agents and skills never rewrite themselves; what grows is the project's `knowledge\` folder.
+Learning is always on. By default it always needs your approval: nothing is saved because an agent decided it should be. The agents and skills never rewrite themselves; what grows is the project's `knowledge\` folder. [Saving without review](#saving-without-review-opt-in) is an opt-in setting, described below.
 
 **Every story ends with a learning check.** Before its final report the agent runs `autodev learn suggest`, which searches the recorded history for evidence worth turning into a rule:
 
@@ -485,6 +485,36 @@ node scripts\autodev.mjs learn verify  --project orders
 Do not edit `approved.md` by hand: a file that differs from what was approved fails its integrity check and is ignored. Standing team rules you already know belong in `guidelines\`, which you edit freely.
 
 Approve a rule only if it is true in general. A wrong rule is followed on every later story; a dismissed signal costs nothing.
+
+### Saving without review (opt-in)
+
+If approving each rule is more attention than you want to give, a project can save them automatically. In `project.yaml`:
+
+```yaml
+learning:
+  persistence: auto-save      # default: explicit-approval-only
+```
+
+What changes: when the agent proposes a rule it is written to the knowledge file straight away, and used on later stories, without you seeing it first.
+
+What does not change:
+
+- Only you can turn this on. Agents cannot edit `project.yaml`, and onboarding cannot set it.
+- The same checks apply: no secrets or personal data, one specific rule, a known area, and the knowledge file must be untampered.
+- Each such rule is marked in the file as "automatically, not reviewed by a person", and is in the audit log.
+- At most 5 are saved per project per day.
+- End-to-end scenarios, pull requests, tickets and new projects still need your approval. This setting covers learnings only.
+
+Review what was saved, and remove what is wrong:
+
+```powershell
+node scripts\autodev.mjs learn list --project orders                                   # savedWithoutReview lists them
+node scripts\autodev.mjs learn remove --skill plan-review --match "invoice batch job" --project orders
+```
+
+`learn remove` is for you, in your own terminal; an agent cannot run it. It also works for a rule you approved earlier and no longer want.
+
+The risk to weigh: a rule is drawn from one or two stories by a model, and from then on every plan and review follows it. A wrong rule does quiet, repeated damage until someone notices. Text from a ticket or a source file can also end up shaping a rule. If you turn this on, read `learn list` regularly, and consider leaving it off for projects where a wrong rule would be expensive.
 
 ## End-to-end testing of your application
 
@@ -557,7 +587,7 @@ No skill has its own configuration file. This table shows what must be in place 
 | incident-correlation | | | `services[]`, `monitoring.correlation` |
 | root-cause-analysis | | | `services[]`, `repositories[]` |
 | workflow-handoff | | | `agility.defectScope`, `monitoring.incidentPolicy` |
-| learning-management | | | `learning.persistence`. Always on; every rule needs your approval |
+| learning-management | | | `learning.persistence`: `explicit-approval-only` (default, you approve each rule) or `auto-save` |
 | e2e-scenarios | | | `browser.allowedHosts` (the application under test), `repositories[]` |
 | plan-review | | | `policies.planReview` (`required` by default) |
 | onboarding | | | None: it creates the file. Needs a session started without a project |
@@ -593,6 +623,7 @@ Run as `node scripts\autodev.mjs <command>` from the automation folder. `autodev
 | See what monitoring found | `incident list`, `monitor status` |
 | See what is worth learning from | `learn suggest` |
 | See what it has learned or wants to | `learn list`, `learn verify` |
+| Remove a learning (your own terminal) | `learn remove --skill <area> --match "<part of the rule>"` |
 | See everything that was done | `audit show`, `audit verify` |
 
 ## Updating and removing

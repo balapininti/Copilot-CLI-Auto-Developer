@@ -60,7 +60,7 @@ Limits, by design:
 - **It reads only what you name.** It does not search the machine.
 - **Your existing files are treated as information, not instructions.** If an old skill says "push straight to main", that is reported to you as a conflict, not adopted.
 - **No secrets.** Credentials embedded in clone URLs are removed by the scan, `.env` files are never read, and an answer or guideline that looks like it contains a secret is refused. Tokens are stored by you, with `Set-AutoDevCredential.ps1`.
-- **It cannot set policy.** Every policy starts at its restrictive default, monitoring starts off, and thresholds start empty, whatever the answers contain. Loosening one is a person's edit to `project.yaml`.
+- **It cannot set policy.** Every policy starts at its restrictive default, learnings start approval-gated, monitoring starts off, and thresholds start empty, whatever the answers contain. Loosening one is a person's edit to `project.yaml`.
 - **It cannot set environment variables or change an existing project.** It gives you the commands and the list of edits.
 - **New projects only.** Onboarding an id that already exists is refused.
 

@@ -95,7 +95,8 @@ guidelines:
 securityRestrictions: []
 
 learning:
-  persistence: explicit-approval-only
+  persistence: explicit-approval-only   # default: you approve the exact text of every learning.
+                                        # auto-save: learnings are saved without review (see docs/setup.md, Step 13)
 
 policies:
   createPR: approval-required

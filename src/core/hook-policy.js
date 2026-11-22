@@ -25,6 +25,10 @@ const SHELL_RULES = [
     reason: 'Approvals are decided by a person in their own terminal, never by an agent.',
   },
   {
+    pattern: /\blearn\s+remove\b(?![^\n;&|]*--dry-run)/i,
+    reason: 'Learnings are removed by a person. If a saved rule looks wrong, tell the user which one and why.',
+  },
+  {
     pattern: /\bonboard-project\b(?![^\n;&|]*--dry-run)/i,
     reason: 'A project is created from inside a session only after a person approves it. Use "autodev onboard propose --answers <file.json>".',
   },

@@ -7,6 +7,7 @@ import * as dynatrace from '../../adapters/dynatrace/client.js';
 import * as splunk from '../../adapters/splunk/client.js';
 import { appendAudit } from '../../core/audit.js';
 import { createTransport } from '../../core/auth.js';
+import os from 'node:os';
 import path from 'node:path';
 
 import { AutoDevError, ErrorCodes } from '../../core/errors.js';
@@ -23,7 +24,7 @@ import { getIncident, listIncidents, readCheckpoint, saveIncident } from '../../
 import { createLiveSources } from '../../monitoring/sources.js';
 import { runMany, runOnce, verifyResolution } from '../../monitoring/worker.js';
 import { runDemo } from '../../workflow/demo.js';
-import { applyLearning, KNOWLEDGE_AREAS, listProposals, proposeLearning, verifyKnowledge } from '../../workflow/learning.js';
+import { applyLearning, KNOWLEDGE_AREAS, listAutoSaved, listProposals, proposeLearning, removeLearning, verifyKnowledge } from '../../workflow/learning.js';
 import { findSignals, markSignal, recordLearningCheck } from '../../workflow/learning-signals.js';
 
 /**
@@ -318,13 +319,14 @@ export const monitoringCommands = {
     summary: 'Propose a learning. Stages the exact text and an approval request; writes nothing to knowledge.',
     usage: `learn propose --skill <${KNOWLEDGE_AREAS.join('|')}> --rule "When X, always/never Y" --evidence "..." --source "S-01234" [--signal <key from learn suggest>]`,
     run: async (ctx) => {
-      const { projectId } = ctx.project();
-      if (ctx.dryRun) return { dryRun: true, wouldPropose: { skill: ctx.need('skill'), rule: ctx.need('rule') } };
+      const { projectId, manifest } = ctx.project();
+      if (ctx.dryRun) return { dryRun: true, wouldPropose: { skill: ctx.need('skill'), rule: ctx.need('rule') }, wouldSaveWithoutReview: manifest.learning?.persistence === 'auto-save' };
       const proposal = await proposeLearning(ctx.workspace, {
         projectId, skill: ctx.need('skill'), rule: ctx.need('rule'), evidence: (ctx.flags.evidence ?? []).join('; '), source: ctx.need('source'),
+        autoSave: manifest.learning?.persistence === 'auto-save',
       });
       // The signal that prompted this rule is not raised again.
-      if (ctx.flags.signal) markSignal(ctx.workspace, projectId, String(ctx.flags.signal), 'proposed', proposal.approvalId);
+      if (ctx.flags.signal) markSignal(ctx.workspace, projectId, String(ctx.flags.signal), 'proposed', proposal.approvalId ?? 'saved without review');
       return proposal;
     },
   },
@@ -348,8 +350,25 @@ export const monitoringCommands = {
     run: (ctx) => applyLearning(ctx.workspace, { projectId: ctx.project().projectId, approvalId: ctx.need('approval'), dryRun: ctx.dryRun }),
   },
   'learn list': {
-    summary: 'List staged learning proposals and their approval status.',
-    run: (ctx) => ({ proposals: listProposals(ctx.workspace, ctx.project().projectId) }),
+    summary: 'List staged learning proposals and their approval status, and learnings that were saved without review.',
+    run: (ctx) => {
+      const { projectId, manifest } = ctx.project();
+      return {
+        persistence: manifest.learning?.persistence ?? 'explicit-approval-only',
+        proposals: listProposals(ctx.workspace, projectId),
+        savedWithoutReview: listAutoSaved(ctx.workspace, projectId).filter((entry) => !entry.removedAt),
+      };
+    },
+  },
+  'learn remove': {
+    summary: 'FOR A PERSON: remove one learning from the project knowledge, for example a wrong rule that was saved automatically.',
+    usage: 'learn remove --skill <area> --match "<distinctive part of the rule>"',
+    run: (ctx) => {
+      if (ctx.env.AUTODEV_SESSION_ID || ctx.env.AUTODEV_PROJECT) {
+        throw new AutoDevError(ErrorCodes.POLICY_PROHIBITED, 'Learnings are removed by a person, in a terminal that was not started by the launcher. An agent that thinks a rule is wrong tells the user.');
+      }
+      return removeLearning(ctx.workspace, { projectId: ctx.project().projectId, skill: ctx.need('skill'), match: ctx.need('match'), removedBy: os.userInfo().username, dryRun: ctx.dryRun });
+    },
   },
   'learn verify': {
     summary: 'Check that every knowledge file is exactly what was approved.',

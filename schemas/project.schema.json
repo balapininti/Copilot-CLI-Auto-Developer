@@ -188,7 +188,12 @@
     "learning": {
       "type": "object",
       "additionalProperties": false,
-      "properties": { "persistence": { "const": "explicit-approval-only" } }
+      "properties": {
+        "persistence": {
+          "description": "explicit-approval-only (default): a person approves the exact text of every learning. auto-save: learnings an agent proposes are saved without review; a person can list and remove them. Only a person can set this.",
+          "enum": ["explicit-approval-only", "auto-save"]
+        }
+      }
     },
     "policies": {
       "type": "object",

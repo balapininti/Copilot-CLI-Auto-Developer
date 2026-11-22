@@ -69,7 +69,8 @@ export function applyDefaults(manifest) {
   m.branching = { featurePattern: 'feature/{storyId}-{slug}', protected: ['main', 'master', 'develop', 'release/*'], ...m.branching };
   m.tests = { required: ['compile', 'unit'], timeoutMinutes: 30, ...m.tests };
   m.guidelines = m.guidelines ?? [];
-  m.learning = { persistence: 'explicit-approval-only' };
+  // Anything other than the one explicit opt-in is the approval-gated default.
+  m.learning = { persistence: m.learning?.persistence === 'auto-save' ? 'auto-save' : 'explicit-approval-only' };
   m.policies = {
     createPR: 'approval-required',
     createDefect: 'approval-required',

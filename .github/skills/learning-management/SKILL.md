@@ -43,6 +43,15 @@ Also propose a rule for any correction the user gave you during the story that w
 
 Approved learnings come back to you without asking: `autodev context` and `autodev project guidelines` include the ones for the task at hand, marked `approved-learning`. Treat them as the project's rules.
 
+## Projects that save without review
+
+A project owner may set `learning.persistence: auto-save`. `autodev learn propose` then returns `status: saved-without-review` instead of an approval id: the rule is already in the knowledge file, marked as not reviewed. When that happens:
+
+- Tell the user, in your report, exactly which rules were saved and under which area. They can remove one with `autodev learn remove`.
+- Be stricter, not looser. Nobody checks the rule before later stories follow it, so save only what the evidence shows to be true in general. When in doubt, dismiss the signal.
+- There is a daily limit. `POLICY_PROHIBITED` means it is reached: report the rule to the user instead; do not look for another way to save it.
+- You cannot turn this setting on or off, and you cannot remove a learning.
+
 ## Procedure
 
 1. **Decide whether it is worth saving.** Good: a project convention that is not written down, a pitfall that cost time, a correction the user gave you that will apply again. Not worth saving: anything already in the guidelines or the code, one-off facts about a single story, anything you are not sure is true.

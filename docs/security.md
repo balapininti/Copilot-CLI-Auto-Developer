@@ -48,6 +48,8 @@ Prompt instructions are not relied on.
 
 So a learning written around the gate, by an agent or by anyone else, is inert.
 
+**The opt-in exception.** A project owner may set `learning.persistence: auto-save`. `learn propose` then writes the rule without a person's approval, through the same single write path and integrity record, with the same content checks, marked as unreviewed in the file, logged, audited, and capped at 5 a day. This deliberately removes the human check on what later sessions are told to follow, so it is off by default, cannot be set by an agent or by onboarding, and comes with `learn remove`, which only a person outside a session can run. A rule saved this way is model output that may have been shaped by text in a ticket or a source file; treat the knowledge folder of such a project as less trusted, and review `autodev learn list`.
+
 End-to-end scenarios (`projects/<id>/scenarios/`) follow the same model, for a different reason: a scenario is what a change is judged against, so an agent that could rewrite one could hide a regression it had just caused. `scenario apply` is the only writer, the approval is bound to the exact document and to a summary that names every expectation an update removes, and `scenario run` refuses a file that does not match its integrity record. A HAR handed to `scenario import` is reduced to methods, templated paths, status codes and the field names of bodies; headers, cookies, tokens, query values and response values are never written anywhere, and the HAR is not copied. See [e2e-scenarios.md](e2e-scenarios.md).
 
 ## The preToolUse hook
