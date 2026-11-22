@@ -12,7 +12,7 @@ From an empty Windows workstation to a first story, in order. Allow about an hou
 | 9 to 10 | Start a session and take a first story to a pull request | Development |
 | 11 | Record baseline end-to-end scenarios | Optional |
 | 12 | Turn on monitoring | Optional |
-| 13 | Approve the rules it proposes after each story | Ongoing; learning is always on |
+| 13 | Approve the rules it proposes after each story, or opt in to saving them without review | Ongoing; learning is always on |
 
 > Nothing here has been run against a real corporate system yet. Each "verify" step below is the first real test of that integration in your environment; [unsupported.md](unsupported.md) records what is and is not proven. If a step fails, that is a finding to report, not something to work around.
 
@@ -261,6 +261,7 @@ Open `C:\DevWorkspace\projects\orders\project.yaml`. The commented reference is 
 | `tests` | `required` stages and `timeoutMinutes` | testing |
 | `branching` | `featurePattern`, `protected` | bitbucket |
 | `policies` | What needs approval, and `planReview` (below). Leave the defaults until you trust the setup | every skill that writes; plan-review |
+| `learning` | `persistence`: `explicit-approval-only` (default) or `auto-save`. Leave the default at first; [Step 13](#saving-without-review-opt-in) | learning-management |
 | `monitoring` | Off by default; [Step 12](#step-12-turn-on-monitoring-optional) | splunk, dynatrace, incident-correlation |
 
 Things that are easy to get wrong:
@@ -272,6 +273,7 @@ Things that are easy to get wrong:
 - **`services[]` drives monitoring.** An incident for a service that is not listed stops at `needs-onboarding`.
 - **The plan gate is on by default.** `policies.planReview: required` means nothing is committed and no pull request is opened until the story's plan has been independently evaluated as ready. `advisory` keeps the evaluation but removes the hard stop. See [plan-review.md](plan-review.md).
 - **The application under test must be listed.** End-to-end scenarios and browser checks may only click and type on hosts in `browser.allowedHosts`.
+- **Three settings are yours alone.** `policies`, `learning.persistence` and `monitoring.enabled` decide how much the agents may do without you. No agent can change them, and onboarding always writes the restrictive value.
 - **Policies cannot be loosened past the schema.** `productionChanges` can only be `prohibited`, and there is no setting that lets the framework merge or deploy. Keep `dbWrites: prohibited`: the DB2 adapter has no write path whatever the policy says.
 
 ## Step 7: Write down your process
@@ -385,7 +387,7 @@ What happens, and what you will be asked:
 | 8 | Automated review | agent | Checks for secrets, disabled TLS, string-built SQL, disabled tests and similar |
 | 9 | Independent review | `code-reviewer` | A verdict covering nine areas, including whether the change matches the plan |
 | 10 | Commit and open the PR | agent | **You approve** the exact pull request content in a separate terminal |
-| 11 | Learning check | agent | It proposes rules from what went wrong on this story or keeps recurring. **You approve** the ones that are true in general |
+| 11 | Learning check | agent | It proposes rules from what went wrong on this story or keeps recurring. **You approve** the ones that are true in general. (With `learning.persistence: auto-save` they are saved without asking, and the report lists them.) |
 | 12 | Report | agent | PR links, what was tested, what is left open, what is waiting for you |
 
 Approvals are always decided by you, in a **separate terminal**, where you see the exact content:
@@ -413,7 +415,7 @@ Nothing below has been run by a model in a real session yet, so judge it yoursel
 - **The plan evaluation.** Are the P0 and P1 findings real? Did it miss something you would have caught? ([plan-review.md](plan-review.md))
 - **The review checklist.** Each area says what the reviewer looked at. Does that match the change?
 - **The pull request content** you are asked to approve: title, description, files.
-- **The rules it proposes at the end.** Approve one only if it is true for the project in general, not just for this story. Denying costs nothing; a wrong rule is followed on every later story.
+- **The rules it proposes at the end.** Approve one only if it is true for the project in general, not just for this story. Denying costs nothing; a wrong rule is followed on every later story. Seeing what it proposes on a few stories is also how you decide whether to trust it with auto-save later.
 
 Use `--dry-run` on any command, or ask the agent to work in dry-run, to see what would happen without anything being written.
 
@@ -597,6 +599,7 @@ No skill has its own configuration file. This table shows what must be in place 
 Each developer repeats Steps 1, 2, 4, 5 and 8 on their own machine with their own tokens. Steps 3, 6 and 7 are done once:
 
 - `project.yaml` and `guidelines\` contain no secrets, so keep `projects\<id>\` (without `repos\`) in a team repository and have everyone check it out under `C:\DevWorkspace\projects\`.
+- `project.yaml` is shared, so `learning.persistence` and the policies apply to everyone who uses the project. Agree as a team before changing them.
 - Environment variable names must be the same for everyone, because the manifest refers to them by name. The values are the same too, unless people use different regions.
 - `state\` is per machine and is never shared. That includes approvals, plans and their evaluations, and the integrity records for learnings and scenarios. A learning or scenario approved on one machine is not trusted on another until it is approved there, even if the file itself is shared. The history that the learning check searches is per machine too, so patterns are found from the stories run on that machine.
 
