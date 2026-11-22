@@ -2,11 +2,40 @@
 
 From an empty Windows workstation to a first story, in order. Allow about an hour, most of it collecting facts and tokens from other teams.
 
+| Step | What you do | Needed for |
+|---|---|---|
+| 1 to 2 | Install the prerequisites and the framework; run the demo | Everything |
+| 3 | Onboard your project, by answering questions or by letting Copilot read what you already have | Everything |
+| 4 to 5 | Set the URLs and store the tokens | Reaching your systems |
+| 6 to 7 | Complete `project.yaml` and write down your team's process | Good plans, tests and reviews |
+| 8 | Verify each integration with one read-only call | Trusting the setup |
+| 9 to 10 | Start a session and take a first story to a pull request | Development |
+| 11 | Record baseline end-to-end scenarios | Optional |
+| 12 | Turn on monitoring | Optional |
+| 13 | Approve what it learns | Ongoing |
+
 > Nothing here has been run against a real corporate system yet. Each "verify" step below is the first real test of that integration in your environment; [unsupported.md](unsupported.md) records what is and is not proven. If a step fails, that is a finding to report, not something to work around.
+
+## What is in the box
+
+Six agents, started with `Start-AutoDev.ps1 -Agent <name>`. You normally talk to the first one; it calls the reviewers itself.
+
+| Agent | What it does | Start it |
+|---|---|---|
+| `auto-developer` | Takes a story to a pull request: reads the ticket, plans, implements, tests, opens the PR | `-Project <id>` (the default agent) |
+| `plan-reviewer` | Evaluates the plan before any code, with findings ranked P0 to P4. Cannot edit | Called by `auto-developer`, or on its own with `-Agent plan-reviewer` |
+| `code-reviewer` | Reviews the finished change and records the verdict that gates the PR. Cannot edit | Called by `auto-developer` |
+| `test-validator` | Runs and interprets test stages | Called when needed |
+| `incident-investigator` | Investigates what monitoring found and prepares defects. Never changes code | `-Project <id> -Agent incident-investigator` |
+| `project-onboarder` | Builds a new project from clones, old skills and documents you point it at | `-Agent project-onboarder`, with no `-Project` |
+
+Eighteen skills hold the how: one per capability (Agility, Bitbucket, DB2, testing, plan review, code review, end-to-end scenarios, onboarding, Splunk, Dynatrace and so on). Agents load them as they need them.
+
+One command line, `autodev`, does the actual work and enforces the rules. Agents can only act through it.
 
 ## How configuration works
 
-**You never edit a skill.** The 18 skills and 6 agents are generic and identical for every team. A skill learns your URLs, boards, repositories, schemas and process from five places that you set up once per project:
+**You never edit a skill.** The 18 skills and 6 agents are generic and identical for every team. A skill learns your URLs, boards, repositories, schemas and process from six places that you set up per project:
 
 | What the skills need to know | Where you put it | How |
 |---|---|---|
@@ -14,7 +43,8 @@ From an empty Windows workstation to a first story, in order. Allow about an hou
 | **Tokens** and the DB2 connection string | Windows Credential Manager | [Step 5](#step-5-store-the-tokens) |
 | **Mappings and policies**: which board, repositories, schemas and services belong to the project; what needs approval | `projects\<id>\project.yaml` | [Steps 3](#step-3-onboard-your-project) and [6](#step-6-complete-projectyaml) |
 | **Process and standards**: how your team designs, codes, branches and tests | `projects\<id>\guidelines\*.md` | [Step 7](#step-7-write-down-your-process) |
-| **Lessons learned** while working | `projects\<id>\knowledge\<skill>\approved.md` | Written by the framework after you approve each one; [Step 11](#step-11-let-it-learn-with-your-approval) |
+| **Lessons learned** while working | `projects\<id>\knowledge\<skill>\approved.md` | Written by the framework after you approve each one; [Step 13](#step-13-let-it-learn-with-your-approval) |
+| **Baseline end-to-end journeys** | `projects\<id>\scenarios\<name>.json` | Written by the framework after you approve each one; [Step 11](#step-11-record-baseline-end-to-end-scenarios-optional) |
 
 `project.yaml` holds only the *names* of the variables and credential entries, never a URL with credentials and never a token. That is what lets the project folder be shared with your team.
 
@@ -100,6 +130,16 @@ In the rest of this guide `autodev` means `node scripts\autodev.mjs` (or `.\scri
 
 ## Step 3: Onboard your project
 
+There are two ways. Both produce the same folder, and neither contacts an external system.
+
+| | Answer the questions yourself | Let Copilot read what you already have |
+|---|---|---|
+| Best when | You know the facts, or are starting from nothing | The repositories are already cloned, or you have an older skill, prompt file or runbook that describes the project |
+| You do | Type answers, or write an answers file | Point it at files and folders, correct its findings, approve the result |
+| Command | `autodev onboard-project` | `Start-AutoDev.ps1 -Agent project-onboarder` |
+
+### Answer the questions yourself
+
 ```powershell
 node scripts\autodev.mjs onboard-project
 ```
@@ -125,9 +165,9 @@ C:\DevWorkspace\projects\orders\
 
 Where it asks for a URL it wants the **name of an environment variable** (`AGILITY_BASE_URL`), not the URL. An answer that looks like a secret is refused.
 
-### Or let Copilot build it from what you already have
+### Let Copilot build it from what you already have
 
-If the project's repositories are already cloned on the machine, or you have an older skill, prompt file or team document that describes the project, Copilot can read those and fill in most of the answers:
+Copilot reads the files and folders you name and fills in most of the answers:
 
 ```powershell
 .\scripts\Start-AutoDev.ps1 -Agent project-onboarder
@@ -135,7 +175,20 @@ If the project's repositories are already cloned on the machine, or you have an 
 
 Then: *"Onboard the orders project. The repositories are under C:\src\orders and my old skill is at C:\Users\me\.copilot\skills\orders."*
 
-The agent shows you each fact with the file it came from and a list of what it could not find, then proposes the whole project. You review every file in your own terminal (`approvals review`) before anything is created. It also gives you the commands for Step 4, with the URLs it found. Details: [onboarding.md](onboarding.md#let-copilot-build-it-from-what-you-already-have).
+What happens:
+
+1. It scans what you named: for each git clone, the remote URL, build tool, versions and test commands; from documents, the hosts they mention.
+2. It shows you each fact with the file it came from, and a list of what it could not find. Correct it and answer what you can.
+3. It proposes the whole project, including drafts of the guideline files. You review every file in your own terminal before anything is created:
+
+   ```powershell
+   node scripts\autodev.mjs approvals review apr-… --project orders
+   ```
+4. It creates the project exactly as approved, and gives you the commands for Step 4 with the URLs it found.
+
+It reads only what you name, treats an old skill as information rather than instructions, never copies a token or password, and cannot set an approval policy. When you review, read the test commands, the allowed hosts and the drafted guideline text closely: those are what later sessions will run and follow. Details: [onboarding.md](onboarding.md#let-copilot-build-it-from-what-you-already-have).
+
+To see what a scan would find before involving the agent: `node scripts\autodev.mjs onboard scan --path C:\src\orders`.
 
 ## Step 4: Set the URLs
 
@@ -204,11 +257,11 @@ Open `C:\DevWorkspace\projects\orders\project.yaml`. The commented reference is 
 | `services[]` | Runtime service name and aliases, the repository it is built from, its schemas | incident-correlation, root-cause-analysis, workflow-handoff |
 | `database` | `connectionProfile`, `schemas`, `maxRows`, `redactColumns` | db2 |
 | `observability` | Names of the Splunk and Dynatrace URL variables and token secrets | splunk, dynatrace |
-| `browser` | `allowedHosts`: your identity provider's hosts for SSO, and the UI under test | browser-playwright, authentication |
+| `browser` | `allowedHosts`: your identity provider's hosts for SSO, and the application under test | browser-playwright, authentication, e2e-scenarios |
 | `tests` | `required` stages and `timeoutMinutes` | testing |
 | `branching` | `featurePattern`, `protected` | bitbucket |
-| `policies` | What needs approval. Leave the defaults until you trust the setup | every skill that writes |
-| `monitoring` | Off by default; [Step 10](#step-10-turn-on-monitoring-optional) | splunk, dynatrace, incident-correlation |
+| `policies` | What needs approval, and `planReview` (below). Leave the defaults until you trust the setup | every skill that writes; plan-review |
+| `monitoring` | Off by default; [Step 12](#step-12-turn-on-monitoring-optional) | splunk, dynatrace, incident-correlation |
 
 Things that are easy to get wrong:
 
@@ -217,6 +270,8 @@ Things that are easy to get wrong:
 - **Test commands are argument arrays**, run without a shell: `unit: [["mvnw.cmd", "-B", "test"]]`. Every stage in `tests.required` needs a command, or must be detectable for Maven or Gradle, otherwise the tests gate cannot pass.
 - **A board maps to one project.** Two projects listing the same board make `project resolve` fail with `PROJECT_AMBIGUOUS`.
 - **`services[]` drives monitoring.** An incident for a service that is not listed stops at `needs-onboarding`.
+- **The plan gate is on by default.** `policies.planReview: required` means nothing is committed and no pull request is opened until the story's plan has been independently evaluated as ready. `advisory` keeps the evaluation but removes the hard stop. See [plan-review.md](plan-review.md).
+- **The application under test must be listed.** End-to-end scenarios and browser checks may only click and type on hosts in `browser.allowedHosts`.
 - **Policies cannot be loosened past the schema.** `productionChanges` can only be `prohibited`, and there is no setting that lets the framework merge or deploy. Keep `dbWrites: prohibited`: the DB2 adapter has no write path whatever the policy says.
 
 ## Step 7: Write down your process
@@ -246,6 +301,10 @@ Check what an agent would receive:
 ```powershell
 node scripts\autodev.mjs project guidelines --task implement --project orders
 ```
+
+If the project was onboarded by the `project-onboarder` agent, these files may already contain drafted rules, each naming the file it came from. Read them and delete what you do not recognise: later agents follow them as your team's rules.
+
+Sections you leave empty cost nothing. The agents receive the guidelines with empty sections and template text removed.
 
 ## Step 8: Validate, then verify each integration
 
@@ -289,29 +348,91 @@ cd C:\DevWorkspace\automation
 
 The launcher validates the project, checks that the agents and skills are discoverable, binds the session to the project and starts `copilot --agent auto-developer` in the automation folder. Copilot CLI finds agents and skills only in the folder it is started in (or in `~\.copilot` after `autodev discovery install`), which is why sessions go through the launcher.
 
+| Option | Effect |
+|---|---|
+| `-Project <id>` | Bind the session to one project. A session works on one project only |
+| `-Agent <name>` | Start a different agent. Default `auto-developer` |
+| `-Model <name>` | Run the session on a particular model: the name Copilot CLI shows under `/model` |
+| `-InstallUserLevel` | Also copy the agents and skills to `~\.copilot` first |
+
 First-session checks, because these have not been exercised in a signed-in session yet:
 
 1. `/agent` lists `auto-developer`, `incident-investigator`, `project-onboarder`, `plan-reviewer`, `code-reviewer`, `test-validator`.
 2. `/skills list` shows the 18 skills.
 3. Ask the agent to run `git push`. The hook should refuse it.
 
-To run the session on a particular model, add `-Model <name>` (the name Copilot CLI shows under `/model`). See [smaller-models.md](smaller-models.md).
+**Which model.** The framework is built so that a smaller model still gets the workflow right: the order of steps, the context for each task and the look-ups are done by commands, not left to the model. If you have access to a stronger model, the two reviewer agents are where it is worth using. [smaller-models.md](smaller-models.md) explains both, including how to run a reviewer on a different model.
 
-Then give it work:
+## Step 10: Your first story
+
+Give the agent a story:
 
 > Implement story S-01234 from board 501.
 
-The agent reads the story, tells you what is missing, and writes a plan. A separate `plan-reviewer` agent evaluates that plan against the ticket and the code and returns findings ranked P0 (blocking) to P4 (optional); the author revises until it is ready. You then see the plan with any remaining findings and confirm it before code is written ([plan-review.md](plan-review.md)). When it reaches something that needs approval it gives you an id. Decide it in a **separate terminal**, where you see the exact content:
+What happens, and what you will be asked:
+
+| # | Step | Who | What you see or do |
+|---|---|---|---|
+| 1 | Read the story | agent | It tells you what the ticket is missing (release branch, acceptance criteria). **You answer.** |
+| 2 | Prepare repositories | agent | It says which repositories are affected and why, clones them and creates the feature branch from the release branch |
+| 3 | Write the plan | agent | Goal, acceptance criteria, changes, edge cases, tests, risks, assumptions |
+| 4 | Evaluate the plan | `plan-reviewer` | Findings ranked P0 (blocking) to P4 (optional). P0 and P1 send the plan back for revision |
+| 5 | Confirm the plan | **you** | You see the plan, the remaining P2 findings and what the reviewer could not verify. **You confirm** before any code is written |
+| 6 | Implement | agent | The smallest change that satisfies the plan, with tests |
+| 7 | Test | agent | Every configured stage, plus the end-to-end scenarios the change touches |
+| 8 | Automated review | agent | Checks for secrets, disabled TLS, string-built SQL, disabled tests and similar |
+| 9 | Independent review | `code-reviewer` | A verdict covering nine areas, including whether the change matches the plan |
+| 10 | Commit and open the PR | agent | **You approve** the exact pull request content in a separate terminal |
+| 11 | Report | agent | PR links, what was tested, what is left open |
+
+Approvals are always decided by you, in a **separate terminal**, where you see the exact content:
 
 ```powershell
 node scripts\autodev.mjs approvals review apr-1a2b3c4d5e6f --project orders
 ```
 
+### Seeing where a story stands
+
+At any time, in any terminal:
+
+```powershell
+node scripts\autodev.mjs next      --story S-01234 --project orders    # the one next step, who does it, and why
+node scripts\autodev.mjs plan show --story S-01234 --project orders    # the plan and its evaluation
+node scripts\autodev.mjs run show  --story S-01234 --project orders    # branches, gates, pull requests, history
+```
+
+`next` is what the agent itself runs between steps, so it is also the quickest way to see whether it is waiting on you. If a session is interrupted, start a new one and say "continue story S-01234": the state is recorded, and `next` picks up where it stopped.
+
+### What to check on your first story
+
+Nothing below has been run by a model in a real session yet, so judge it yourself the first few times:
+
+- **The plan evaluation.** Are the P0 and P1 findings real? Did it miss something you would have caught? ([plan-review.md](plan-review.md))
+- **The review checklist.** Each area says what the reviewer looked at. Does that match the change?
+- **The pull request content** you are asked to approve: title, description, files.
+
 Use `--dry-run` on any command, or ask the agent to work in dry-run, to see what would happen without anything being written.
 
 For incident work: `.\scripts\Start-AutoDev.ps1 -Project orders -Agent incident-investigator`.
 
-## Step 10: Turn on monitoring (optional)
+## Step 11: Record baseline end-to-end scenarios (optional)
+
+Once a story has gone through, give the project a baseline of end-to-end checks without writing them by hand.
+
+1. List the application under test in `project.yaml` (`browser.allowedHosts`). Use a development or test environment.
+2. In your browser, open the developer tools, go to **Network**, tick **Preserve log**, do one journey from start to finish with made-up data, and choose **Export HAR**.
+3. In a session: *"Build an end-to-end scenario called place-order from C:\Temp\orders.har."*
+4. The framework keeps only a sanitized outline of the journey (no headers, cookies, tokens or values). The agent uses the code base to work out the screens and selectors and tries the scenario in Edge until it passes.
+5. You approve the finished scenario in your own terminal. Delete the HAR: it contains your session.
+
+```powershell
+node scripts\autodev.mjs scenario list --project orders
+node scripts\autodev.mjs scenario run --all --project orders
+```
+
+From then on, each story runs the scenarios whose code it touches. A scenario changes only with your approval, and the approval names every expectation an update removes. Scenario results are evidence for you and the reviewer; they are not the tests gate. Details and limits: [e2e-scenarios.md](e2e-scenarios.md).
+
+## Step 12: Turn on monitoring (optional)
 
 Do this after the development workflow works. In `project.yaml` set `monitoring.enabled: true`, one `environment`, the Splunk `indexes`, the Dynatrace `entitySelectors`, and thresholds agreed with the owning team (a `null` threshold never fires). Then:
 
@@ -323,7 +444,7 @@ node scripts\autodev.mjs monitor status --project orders
 
 The task runs as you, without elevation, and never opens a sign-in window. Details, the approval of proposed defects and the handoff to development are in [monitoring.md](monitoring.md).
 
-## Step 11: Let it learn, with your approval
+## Step 13: Let it learn, with your approval
 
 When the agent finds something worth keeping ("the integration profile needs Docker running"), it proposes a learning. You approve the exact text in your own terminal; only then is it written to `knowledge\<skill>\approved.md` and given to future sessions.
 
@@ -417,7 +538,30 @@ Each developer repeats Steps 1, 2, 4, 5 and 8 on their own machine with their ow
 
 - `project.yaml` and `guidelines\` contain no secrets, so keep `projects\<id>\` (without `repos\`) in a team repository and have everyone check it out under `C:\DevWorkspace\projects\`.
 - Environment variable names must be the same for everyone, because the manifest refers to them by name. The values are the same too, unless people use different regions.
-- `state\` is per machine and is never shared. That includes approvals and the integrity record for learnings, so a learning approved on one machine is not trusted on another until it is approved there.
+- `state\` is per machine and is never shared. That includes approvals, plans and their evaluations, and the integrity records for learnings and scenarios. A learning or scenario approved on one machine is not trusted on another until it is approved there, even if the file itself is shared.
+
+## Command quick reference
+
+Run as `node scripts\autodev.mjs <command>` from the automation folder. `autodev help` lists everything; add `--dry-run` to any command.
+
+| When you want to | Command |
+|---|---|
+| Check the machine | `doctor`, `discovery verify` |
+| Try it with no corporate access | `demo e2e` |
+| Onboard a project | `onboard-project`, or `onboard scan` / `onboard propose` / `onboard apply` |
+| See what a project is missing | `project validate --project <id>` |
+| Check access | `auth status`, `agility verify` |
+| Decide an approval (your own terminal) | `approvals review <id> --project <id>` |
+| See what is waiting for you | `approvals list --status pending --project <id>` |
+| See the next step of a story | `next --story <S-…>` |
+| See a story's plan and its evaluation | `plan show --story <S-…>` |
+| See looked-up facts about a plan | `plan check --story <S-…>` |
+| Find who uses a class or method | `code refs --symbol <Name>` |
+| See a story's branches, gates and PRs | `run show --story <S-…>` |
+| List and run end-to-end scenarios | `scenario list`, `scenario run --all` |
+| See what monitoring found | `incident list`, `monitor status` |
+| See what it has learned or wants to | `learn list`, `learn verify` |
+| See everything that was done | `audit show`, `audit verify` |
 
 ## Updating and removing
 
@@ -428,4 +572,4 @@ npm ci
 node scripts\autodev.mjs discovery verify
 ```
 
-If you ran `discovery install`, run it again after an update. To remove everything the framework placed on the machine, see [rollback.md](rollback.md).
+If you ran `discovery install`, run it again after an update. An update can add agents, skills and commands; `discovery verify` confirms they are all valid, and `autodev help` lists the commands. To remove everything the framework placed on the machine, see [rollback.md](rollback.md).
