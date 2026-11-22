@@ -12,7 +12,7 @@ From an empty Windows workstation to a first story, in order. Allow about an hou
 | 9 to 10 | Start a session and take a first story to a pull request | Development |
 | 11 | Record baseline end-to-end scenarios | Optional |
 | 12 | Turn on monitoring | Optional |
-| 13 | Approve what it learns | Ongoing |
+| 13 | Approve the rules it proposes after each story | Ongoing; learning is always on |
 
 > Nothing here has been run against a real corporate system yet. Each "verify" step below is the first real test of that integration in your environment; [unsupported.md](unsupported.md) records what is and is not proven. If a step fails, that is a finding to report, not something to work around.
 
@@ -43,7 +43,7 @@ One command line, `autodev`, does the actual work and enforces the rules. Agents
 | **Tokens** and the DB2 connection string | Windows Credential Manager | [Step 5](#step-5-store-the-tokens) |
 | **Mappings and policies**: which board, repositories, schemas and services belong to the project; what needs approval | `projects\<id>\project.yaml` | [Steps 3](#step-3-onboard-your-project) and [6](#step-6-complete-projectyaml) |
 | **Process and standards**: how your team designs, codes, branches and tests | `projects\<id>\guidelines\*.md` | [Step 7](#step-7-write-down-your-process) |
-| **Lessons learned** while working | `projects\<id>\knowledge\<skill>\approved.md` | Written by the framework after you approve each one; [Step 13](#step-13-let-it-learn-with-your-approval) |
+| **Lessons learned** while working | `projects\<id>\knowledge\<area>\approved.md` | Proposed by the agent at the end of every story; written after you approve each one; [Step 13](#step-13-let-it-learn-with-your-approval) |
 | **Baseline end-to-end journeys** | `projects\<id>\scenarios\<name>.json` | Written by the framework after you approve each one; [Step 11](#step-11-record-baseline-end-to-end-scenarios-optional) |
 
 `project.yaml` holds only the *names* of the variables and credential entries, never a URL with credentials and never a token. That is what lets the project folder be shared with your team.
@@ -278,14 +278,16 @@ Things that are easy to get wrong:
 
 The four files in `projects\orders\guidelines\` are how the agents learn your team's way of working. The agent loads the relevant ones before each kind of task:
 
-| Task | Guidelines loaded |
-|---|---|
-| Planning a story | architecture, development-workflow |
-| Implementing | architecture, coding-standards, development-workflow, testing-standards |
-| Testing | testing-standards, development-workflow |
-| Reviewing | coding-standards, architecture, testing-standards |
-| Database work | architecture, coding-standards |
-| Investigating an incident | architecture |
+| Task | Guidelines loaded | Approved learnings loaded with them |
+|---|---|---|
+| Planning a story, and evaluating the plan | architecture, development-workflow | plan-review, project-context, agility, bitbucket, db2, testing, code-review, workflow-handoff, authentication |
+| Implementing | architecture, coding-standards, development-workflow, testing-standards | java-spring, bitbucket, db2, testing, plan-review |
+| Testing | testing-standards, development-workflow | testing, browser-playwright, e2e-scenarios |
+| Reviewing | coding-standards, architecture, testing-standards | code-review, java-spring, testing, db2 |
+| Database work | architecture, coding-standards | db2 |
+| Investigating an incident | architecture | splunk, dynatrace, incident-correlation, root-cause-analysis, db2, workflow-handoff, authentication |
+
+Guidelines are what you write. Approved learnings are the rules the project has picked up along the way ([Step 13](#step-13-let-it-learn-with-your-approval)); they start empty and are delivered with the guidelines once you have approved some.
 
 What belongs in each:
 
@@ -402,7 +404,7 @@ node scripts\autodev.mjs plan show --story S-01234 --project orders    # the pla
 node scripts\autodev.mjs run show  --story S-01234 --project orders    # branches, gates, pull requests, history
 ```
 
-`next` is what the agent itself runs between steps, so it is also the quickest way to see whether it is waiting on you. If a session is interrupted, start a new one and say "continue story S-01234": the state is recorded, and `next` picks up where it stopped.
+`next` is what the agent itself runs between steps, so it is also the quickest way to see whether it is waiting on you: its `waitingForYou` list shows every approval that is pending (a pull request, a learning, a scenario). If a session is interrupted, start a new one and say "continue story S-01234": the state is recorded, and `next` picks up where it stopped.
 
 ### What to check on your first story
 
@@ -411,6 +413,7 @@ Nothing below has been run by a model in a real session yet, so judge it yoursel
 - **The plan evaluation.** Are the P0 and P1 findings real? Did it miss something you would have caught? ([plan-review.md](plan-review.md))
 - **The review checklist.** Each area says what the reviewer looked at. Does that match the change?
 - **The pull request content** you are asked to approve: title, description, files.
+- **The rules it proposes at the end.** Approve one only if it is true for the project in general, not just for this story. Denying costs nothing; a wrong rule is followed on every later story.
 
 Use `--dry-run` on any command, or ask the agent to work in dry-run, to see what would happen without anything being written.
 
@@ -565,7 +568,7 @@ Each developer repeats Steps 1, 2, 4, 5 and 8 on their own machine with their ow
 
 - `project.yaml` and `guidelines\` contain no secrets, so keep `projects\<id>\` (without `repos\`) in a team repository and have everyone check it out under `C:\DevWorkspace\projects\`.
 - Environment variable names must be the same for everyone, because the manifest refers to them by name. The values are the same too, unless people use different regions.
-- `state\` is per machine and is never shared. That includes approvals, plans and their evaluations, and the integrity records for learnings and scenarios. A learning or scenario approved on one machine is not trusted on another until it is approved there, even if the file itself is shared.
+- `state\` is per machine and is never shared. That includes approvals, plans and their evaluations, and the integrity records for learnings and scenarios. A learning or scenario approved on one machine is not trusted on another until it is approved there, even if the file itself is shared. The history that the learning check searches is per machine too, so patterns are found from the stories run on that machine.
 
 ## Command quick reference
 
@@ -579,11 +582,12 @@ Run as `node scripts\autodev.mjs <command>` from the automation folder. `autodev
 | See what a project is missing | `project validate --project <id>` |
 | Check access | `auth status`, `agility verify` |
 | Decide an approval (your own terminal) | `approvals review <id> --project <id>` |
-| See what is waiting for you | `approvals list --status pending --project <id>` |
+| See what is waiting for you | `next --story <S-…>` (`waitingForYou`), or `approvals list --status pending --project <id>` |
 | See the next step of a story | `next --story <S-…>` |
 | See a story's plan and its evaluation | `plan show --story <S-…>` |
 | See looked-up facts about a plan | `plan check --story <S-…>` |
 | Find who uses a class or method | `code refs --symbol <Name>` |
+| Get everything a task needs in one call | `context --story <S-…> --task plan\|plan-review\|implement\|test\|review` |
 | See a story's branches, gates and PRs | `run show --story <S-…>` |
 | List and run end-to-end scenarios | `scenario list`, `scenario run --all` |
 | See what monitoring found | `incident list`, `monitor status` |
