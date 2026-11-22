@@ -629,7 +629,11 @@ Run as `node scripts\autodev.mjs <command>` from the automation folder. `autodev
 | Remove a learning (your own terminal) | `learn remove --skill <area> --match "<part of the rule>"` |
 | See everything that was done | `audit show`, `audit verify` |
 
-## Updating and removing
+## Updating and customising
+
+There are two kinds of change: updates that come from the repository, and changes you make yourself on this machine.
+
+### Getting updates
 
 ```powershell
 cd C:\DevWorkspace\automation
@@ -638,4 +642,68 @@ npm ci
 node scripts\autodev.mjs discovery verify
 ```
 
-If you ran `discovery install`, run it again after an update. An update can add agents, skills and commands; `discovery verify` confirms they are all valid, and `autodev help` lists the commands. To remove everything the framework placed on the machine, see [rollback.md](rollback.md).
+- **Your projects are untouched.** `projects\` and `state\` are outside the repository folder, so an update never changes your `project.yaml`, guidelines, learnings, scenarios or history.
+- **Start a new Copilot session afterwards.** Agents and skills are read when a session starts; a running session keeps the old ones.
+- **If you ran `discovery install`,** run it again. It made a copy in `~\.copilot`, and that copy is what needs refreshing.
+- **After a larger update,** run `node scripts\autodev.mjs project validate --project <id>` in case a setting was added, and `autodev help` to see new commands.
+
+### Before you edit a skill, check whether you need to
+
+Most team-specific changes do not belong in a skill. Skills are shared by every project; what is particular to your team lives in the project folder.
+
+| You want to change | Change this |
+|---|---|
+| How your team codes, branches, tests or reviews | `projects\<id>\guidelines\*.md` |
+| A rule the agent should have picked up | Approve a learning it proposes, or add the rule to the guidelines ([Step 13](#step-13-let-it-learn-with-your-approval)) |
+| URLs, repositories, schemas, test commands, policies | `projects\<id>\project.yaml` and the environment variables |
+| The plan-evaluation prompt or the P0 to P4 scale | `.github\skills\plan-review\SKILL.md`. Keep the copy in `docs\plan-review.md` in step |
+| How an agent uses a capability, for every project | The skill or agent file (below) |
+| What a command does or enforces | The code under `src\`, with tests (below) |
+
+### Changing a skill or an agent
+
+They are plain Markdown files. Edit them directly:
+
+```
+C:\DevWorkspace\automation\.github\skills\<name>\SKILL.md
+C:\DevWorkspace\automation\.github\agents\<name>.agent.md
+```
+
+Then check the file is still valid and start a new session:
+
+```powershell
+node scripts\autodev.mjs discovery verify --strict
+```
+
+The hook stops the agents from editing these files. It does not stop you. Keep the frontmatter at the top (`name`, `description`, and `tools` for agents): a description with a colon or quotes in it must stay inside double quotes, and `discovery verify` reports it if the YAML breaks.
+
+### Keeping your changes when you update
+
+Commit your edits, so that `git pull` can merge upstream changes with them:
+
+```powershell
+git add .github
+git commit -m "Adjust the plan-review skill for our team"
+git pull
+```
+
+If the same lines changed in both places, git reports a conflict in that file; open it, keep what you want, and commit. If you expect to customise a lot, or several people share your changes, fork the repository on GitHub and clone the fork instead. You then decide when upstream changes come in, and your team pulls from the fork.
+
+### Changing the code
+
+Run the checks before relying on a change:
+
+```powershell
+npm run check                          # lint, type-check, unit tests
+node scripts\autodev.mjs demo e2e      # both workflows against local mocks
+```
+
+A change to a rule the framework enforces (a gate, an approval, the hook) deserves a test that fails without it. The existing tests under `tests\` show the pattern for each area.
+
+### Working on more than one machine
+
+If changes are made on another machine and pushed to GitHub, `git pull` here brings them in. If you also edit files on this machine, commit and push them first, so the two copies do not diverge.
+
+### Removing it
+
+To remove everything the framework placed on the machine, see [rollback.md](rollback.md).
