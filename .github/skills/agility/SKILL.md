@@ -5,7 +5,7 @@ description: "Reads Digital.ai Agility boards, stories and defects (title, descr
 
 # Digital.ai Agility
 
-Commands are written `autodev <command>`. Run them as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>` (from the automation folder: `node scripts/autodev.mjs <command>`). Each prints one JSON envelope: check `ok`, then read `data` or branch on `error.code`. `--dry-run` shows what a command would do without writing anywhere.
+Run `autodev <command>` as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>`; each prints one JSON envelope (`ok`, then `data` or `error.code`).
 
 Access is token-first. Without a token, and if the project allows it, the same calls go through the user's signed-in Edge profile; the user completes any SSO or MFA prompt themselves. Either way the result has the same shape (`fetchedVia` says which path was used).
 

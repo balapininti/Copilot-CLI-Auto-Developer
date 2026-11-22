@@ -5,7 +5,7 @@ description: "Reviews a story's change against project standards: automated chec
 
 # Code review and the review gates
 
-Commands are written `autodev <command>`. Run them as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>` (from the automation folder: `node scripts/autodev.mjs <command>`). Each prints one JSON envelope: check `ok`, then read `data` or branch on `error.code`. `--dry-run` shows what a command would do without writing anywhere.
+Run `autodev <command>` as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>`; each prints one JSON envelope (`ok`, then `data` or `error.code`).
 
 Two gates, both required before a pull request:
 
@@ -20,7 +20,9 @@ Two gates, both required before a pull request:
 | The full diff against the release branch | `autodev repo diff --story <S-…> --repo <name>` |
 | Run automated checks and record that gate | `autodev review run --story <S-…> --repo <name>` |
 | Authorize a schema or migration change | `autodev review run … --authorize-schema-change [--approval <id>]` |
-| Record the independent verdict | `autodev review record --story <S-…> --repo <name> --verdict pass|fail --reviewer <who> --notes "…"` |
+| Everything a review needs, in one call | `autodev context --story <S-…> --task review --repo <name>` |
+| Who else uses what changed | `autodev code refs --symbol <Name>` |
+| Record the independent verdict | `autodev review record --story <S-…> --repo <name> --verdict pass|fail --reviewer <who> --checklist <file.json> --notes "…"` |
 
 ## Automated findings
 
@@ -48,6 +50,7 @@ Correctness against each acceptance criterion; security; the project's standards
 
 - The author cannot record their own review: `--reviewer auto-developer` is refused.
 - A pass cannot be recorded while automated blockers remain.
+- A pass needs the checklist: one entry for each of `correctness`, `security`, `standards`, `regression`, `performance`, `data`, `tests`, `plan`, `scenarios`, with a `status` (`ok`, `findings`, `not-applicable`) and what you `looked` at. An area left out or `not-checked` is refused.
 - Both verdicts are tied to the exact code reviewed. Any edit afterwards means running both again.
 - Schema changes need the user's explicit authorization, recorded as an approval for the specific files.
 - Findings are stated with file, line and reason. "Looks fine" is not a review note.

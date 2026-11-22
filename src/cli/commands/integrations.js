@@ -24,6 +24,7 @@ import { getSecret } from '../../core/secrets.js';
 import { atomicWriteJson, resolveInside, safeId } from '../../core/state-store.js';
 import { stateDirFor } from '../../core/workspace.js';
 import { checkPlan, planReviewRequired, reviewPlan, showPlan, submitPlan } from '../../workflow/plan.js';
+import { CODE_AREAS, normalizeChecklist } from '../../workflow/checklist.js';
 import { createPullRequest } from '../../workflow/pull-request.js';
 import { addHistory, checkGates, loadRun, recordGate, repoState, updateRun } from '../../workflow/run-store.js';
 
@@ -57,7 +58,7 @@ async function withTransport(ctx, service, fn) {
  * that are not part of the scoped project.
  * @param {import('../main.js').CommandContext} ctx
  */
-function repoOf(ctx) {
+export function repoOf(ctx) {
   const project = ctx.project();
   const name = ctx.need('repo');
   const repo = project.manifest.repositories.find((/** @type {any} */ candidate) => candidate.name === name);
@@ -72,7 +73,7 @@ function repoOf(ctx) {
 /**
  * @param {import('../main.js').CommandContext} ctx
  */
-function storyOf(ctx) {
+export function storyOf(ctx) {
   return safeId(String(ctx.need('story')).toUpperCase(), 'story id');
 }
 
@@ -171,7 +172,13 @@ export const integrationCommands = {
         const story = await agility.readStory(transport, manifest, ctx.args[0]);
         const projectCheck = assertStoryInProject(manifest, story);
         await updateRun(ctx.workspace, projectId, story.id, (run) => {
-          run.story = { id: story.id, oid: story.oid, title: story.title, url: story.url, releaseBranch: story.releaseBranch, releaseBranchSource: story.releaseBranchSource, dependencies: story.dependencies, fetchedAt: story.fetchedAt };
+          // Kept so that later steps (planning, plan checks, context bundles) work from the ticket without reading it again.
+          run.story = {
+            id: story.id, oid: story.oid, title: story.title, url: story.url, status: story.status ?? null,
+            releaseBranch: story.releaseBranch, releaseBranchSource: story.releaseBranchSource, dependencies: story.dependencies, fetchedAt: story.fetchedAt,
+            acceptanceCriteria: story.acceptanceCriteria ? String(story.acceptanceCriteria).slice(0, 12_000) : null,
+            description: story.description ? String(story.description).slice(0, 12_000) : null,
+          };
           addHistory(run, 'story-read', { via: story.fetchedVia });
         });
         /** @type {string[]} */
@@ -405,7 +412,7 @@ export const integrationCommands = {
   },
   'plan review': {
     summary: 'Record the independent evaluation of the current plan: a verdict and findings prioritised P0 to P4.',
-    usage: 'plan review --story <S-01234> --plan-hash <hash from plan show> --verdict ready|not-ready --reviewer <who> --findings <findings.json> --checked "what was verified" [--not-verified "..."]',
+    usage: 'plan review --story <S-01234> --plan-hash <hash from plan show> --verdict ready|not-ready --reviewer <who> --findings <review.json: { areas, findings }> [--not-verified "..."]',
     run: (ctx) => {
       const { projectId } = ctx.project();
       let findings;
@@ -414,8 +421,11 @@ export const integrationCommands = {
       } catch (error) {
         throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `Could not read the findings file as JSON: ${/** @type {Error} */ (error).message.split('\n')[0]}`);
       }
+      // The file is either a list of findings, or { "areas": { … }, "findings": [ … ] }.
+      const structured = findings && typeof findings === 'object' && !Array.isArray(findings);
       return reviewPlan(ctx.workspace, {
-        projectId, storyId: storyOf(ctx), planHash: ctx.need('plan-hash'), verdict: ctx.need('verdict'), reviewer: ctx.need('reviewer'), findings,
+        projectId, storyId: storyOf(ctx), planHash: ctx.need('plan-hash'), verdict: ctx.need('verdict'), reviewer: ctx.need('reviewer'),
+        findings: structured ? findings.findings ?? [] : findings, areas: structured ? findings.areas : undefined,
         checked: ctx.flags.checked ?? null, notVerified: ctx.flags['not-verified'] ?? null,
       });
     },
@@ -455,7 +465,7 @@ export const integrationCommands = {
   },
   'review record': {
     summary: 'Record the independent reviewer\'s verdict for the current code (the independent-review gate).',
-    usage: 'review record --story <S-01234> --repo <name> --verdict pass|fail --reviewer <who> [--notes "..."]',
+    usage: 'review record --story <S-01234> --repo <name> --verdict pass|fail --reviewer <who> --checklist <checklist.json> [--notes "..."]',
     run: async (ctx) => {
       const { projectId, repo, repoPath } = repoOf(ctx);
       const storyId = storyOf(ctx);
@@ -475,8 +485,19 @@ export const integrationCommands = {
         throw new AutoDevError(ErrorCodes.GATE_FAILED, 'The automated review has blockers; an independent pass cannot be recorded until they are resolved.');
       }
       const notes = ctx.flags.notes ? redactString(String(ctx.flags.notes), { pii: true }).slice(0, 2000) : null;
+      /** @type {unknown} */
+      let checklistInput;
+      if (ctx.flags.checklist) {
+        try {
+          checklistInput = JSON.parse(fs.readFileSync(path.resolve(String(ctx.flags.checklist)), 'utf8'));
+        } catch (error) {
+          throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `Could not read the checklist file as JSON: ${/** @type {Error} */ (error).message.split('\n')[0]}`);
+        }
+      }
+      // A pass says, area by area, what was examined; a fail may be recorded as soon as one blocker is found.
+      const checklist = normalizeChecklist(checklistInput, CODE_AREAS, { signOff: verdict === 'pass' });
       await recordGate(ctx.workspace, {
-        projectId, storyId, repo: repo.name, gate: 'independent-review', treeId, passed: verdict === 'pass', summary: { verdict, reviewer, notes },
+        projectId, storyId, repo: repo.name, gate: 'independent-review', treeId, passed: verdict === 'pass', summary: { verdict, reviewer, notes, checklist },
       });
       await appendAudit(ctx.workspace, projectId, { action: 'gate.independent-review', outcome: verdict === 'pass' ? 'success' : 'failure', details: { storyId, repository: repo.name, treeId, reviewer } });
       return { repository: repo.name, treeId, verdict, reviewer };

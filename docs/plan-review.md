@@ -94,10 +94,33 @@ The starting point was: *"Evaluate the following plan for a code change… Ident
 | Changing the plan makes its evaluation stale | The verdict is stored against the plan's SHA-256 |
 | `ready` is refused while any P0 or P1 finding stands | `plan review` |
 | A P0 or P1 finding must carry evidence and a recommendation | `plan review` |
-| `ready` must state what was verified | `plan review --checked` |
+| `ready` needs all nine areas of the checklist, each with what was looked at; none may be unchecked | `plan review` |
+| A finding filed under an area must agree with the checklist | `plan review` |
 | The author cannot record the evaluation | `plan review` refuses the reviewer name `auto-developer` |
 | No commit and no pull request while the current plan is missing, unevaluated, stale or not ready | `repo commit`, `pr create` (gate `plan-review`) |
 | Every submission and evaluation is in the audit log | `autodev audit show --action plan` |
+
+## Facts before judgement
+
+Whether a plan is sound is a judgement. Whether the files it names exist and who else uses what it changes can be looked up, so they are:
+
+```powershell
+node scripts\autodev.mjs plan check --story S-01234 --project orders
+```
+
+| It reports | From |
+|---|---|
+| Each file the plan names: found (and where) or not found, and whether the plan describes it as new | The file lists of the project's clones |
+| Each code identifier the plan names: where it is defined, how many files use it, and **the files that use it but that the plan does not mention** | A whole-word search of every clone |
+| Each table the plan names, with the command that verifies it | The project's schemas |
+| Each acceptance criterion: `mentioned`, `partly` or `not-found` in the plan | Word overlap with the plan |
+| `attention`: the short list of the above that needs a human or reviewer decision | |
+
+The reviewer receives these with the plan (`autodev context --task plan-review`) and resolves each `attention` line. They are look-ups, not verdicts: "not found" means the search did not find it, and a criterion can be mentioned without being satisfied.
+
+## The checklist
+
+A reviewer signs off by recording, for each of the nine areas, a status (`ok`, `findings`, `not-applicable`) and what it looked at. The code review has its own nine areas (`correctness`, `security`, `standards`, `regression`, `performance`, `data`, `tests`, `plan`, `scenarios`). This does not make a review good; it stops a review from being silent about a whole class of problem, which is the usual way a less thorough reviewer fails.
 
 ## Seeing it
 

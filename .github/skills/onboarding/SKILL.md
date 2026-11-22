@@ -5,7 +5,7 @@ description: "Creates a new project from material that already exists on the mac
 
 # Onboarding a project from what already exists
 
-Commands are written `autodev <command>`. Run them as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>` (from the automation folder: `node scripts/autodev.mjs <command>`). Each prints one JSON envelope: check `ok`, then read `data` or branch on `error.code`. `--dry-run` shows what a command would do without writing anywhere.
+Run `autodev <command>` as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>`; each prints one JSON envelope (`ok`, then `data` or `error.code`).
 
 A project is a folder, `projects/<id>/`, holding `project.yaml` (mappings and policies), four guideline files (the team's process) and the folders for learnings and clones. This skill fills them from evidence. It needs a session started **without** a project: `Start-AutoDev.ps1 -Agent project-onboarder`.
 

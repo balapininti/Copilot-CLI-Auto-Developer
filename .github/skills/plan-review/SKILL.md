@@ -5,7 +5,7 @@ description: "Evaluates an implementation plan before any code is written: check
 
 # Plan review
 
-Commands are written `autodev <command>`. Run them as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>` (from the automation folder: `node scripts/autodev.mjs <command>`). Each prints one JSON envelope: check `ok`, then read `data` or branch on `error.code`. `--dry-run` shows what a command would do without writing anywhere.
+Run `autodev <command>` as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>`; each prints one JSON envelope (`ok`, then `data` or `error.code`).
 
 A plan is evaluated by someone who did not write it, before the first line of code. The verdict is tied to the exact plan text: change the plan and it needs evaluating again. Unless the project sets `policies.planReview: advisory`, nothing can be committed and no pull request opened for a story whose current plan is not recorded as ready.
 
@@ -15,7 +15,10 @@ A plan is evaluated by someone who did not write it, before the first line of co
 |---|---|---|
 | Author | Record the plan | `autodev plan submit --story <S-…> --file <plan.md>` |
 | Anyone | Read the plan, its hash and its evaluation | `autodev plan show --story <S-…>` |
-| Reviewer | Record the evaluation | `autodev plan review --story <S-…> --plan-hash <hash> --verdict ready\|not-ready --reviewer plan-reviewer --findings <findings.json> --checked "…" [--not-verified "…"]` |
+| Reviewer | Everything needed to evaluate, in one call | `autodev context --story <S-…> --task plan-review` |
+| Anyone | Looked-up facts about the plan | `autodev plan check --story <S-…>` |
+| Anyone | Who uses an identifier | `autodev code refs --symbol <Name>` |
+| Reviewer | Record the evaluation | `autodev plan review --story <S-…> --plan-hash <hash> --verdict ready\|not-ready --reviewer plan-reviewer --findings <review.json> [--not-verified "…"]` |
 | Anyone | See whether work may proceed | `autodev run show --story <S-…>` → `plan.readiness` |
 
 ## The plan (author)
@@ -74,31 +77,45 @@ This is the instruction you work to.
 
 ### Procedure
 
-1. `autodev plan show --story <S-…>`. Note `planHash`.
-2. `autodev agility story <S-…>` for the acceptance criteria, and `autodev project guidelines --task plan` for the project's architecture and workflow rules.
-3. Read the code the plan touches and its callers. Use `autodev db2 describe` for any table or column it relies on.
-4. Evaluate against the nine points. Write the findings file in a temp folder:
+1. `autodev context --story <S-…> --task plan-review`. It returns the plan and `planHash`, the acceptance criteria, the project's rules, `planFacts` and `checklistAreas`.
+2. Resolve every line of `planFacts.attention`. These are looked-up facts, not verdicts: a file or identifier that was not found, a use of something the plan changes that the plan does not mention, a criterion that shares few words with the plan. Open each and decide.
+3. Read the code the plan touches and its callers (`autodev code refs --symbol <Name>`). Use `autodev db2 describe` for any table or column.
+4. Evaluate the nine areas. Write the review file in a temp folder: one entry per area, then the findings.
 
    ```json
-   [
-     {
-       "priority": "P1",
-       "title": "Guest orders have no customer and will throw",
-       "detail": "PricingService.price() will call order.getCustomer().isLoyaltyMember(); guest checkout creates orders with a null customer, so every guest order fails with a NullPointerException after this change.",
-       "evidence": "service-api: CheckoutController.java:88 creates Order with customer=null; acceptance criterion 2 says other orders are unchanged",
-       "recommendation": "Treat a missing customer as a non-member, and add a unit test for a guest order."
-     }
-   ]
+   {
+     "areas": {
+       "requirements": { "status": "ok", "looked": "Both criteria map to a change and a test in the plan." },
+       "feasibility":  { "status": "ok", "looked": "PricingService.price() exists with the signature the plan assumes." },
+       "edge-cases":   { "status": "findings", "looked": "Checked null customer, empty order, retried request." },
+       "blast-radius": { "status": "ok", "looked": "code refs PricingService: CheckoutController, InvoiceJob; both only read the total." },
+       "data":         { "status": "not-applicable", "looked": "The plan reads APP.DISCOUNT and writes nothing." },
+       "security":     { "status": "ok", "looked": "No new input or endpoint." },
+       "tests":        { "status": "ok", "looked": "The new unit test fails without the change." },
+       "operations":   { "status": "ok", "looked": "One indexed lookup per order; rollback is a revert." },
+       "assumptions":  { "status": "ok", "looked": "Rate source confirmed with db2 describe APP.DISCOUNT." }
+     },
+     "findings": [
+       {
+         "priority": "P1",
+         "area": "edge-cases",
+         "title": "Guest orders have no customer and will throw",
+         "detail": "PricingService.price() will call order.getCustomer().isLoyaltyMember(); guest checkout creates orders with a null customer, so every guest order fails after this change.",
+         "evidence": "service-api: CheckoutController.java:88 creates Order with customer=null; acceptance criterion 2 says other orders are unchanged",
+         "recommendation": "Treat a missing customer as a non-member, and add a unit test for a guest order."
+       }
+     ]
+   }
    ```
 
-   Use `[]` when there are none. `evidence` and `recommendation` are required for P0 and P1.
+   `status` is `ok`, `findings`, `not-applicable` (say why under `looked`) or `not-checked`. A finding's `area` must be marked `findings`. `evidence` and `recommendation` are required for P0 and P1. A `ready` verdict needs all nine areas, none `not-checked`.
 5. Record it:
 
    ```
    autodev plan review --story <S-…> --plan-hash <hash> --verdict not-ready --reviewer plan-reviewer --findings <file>
-   autodev plan review --story <S-…> --plan-hash <hash> --verdict ready --reviewer plan-reviewer --findings <file> --checked "what you verified" --not-verified "what you could not"
+   autodev plan review --story <S-…> --plan-hash <hash> --verdict ready --reviewer plan-reviewer --findings <file> --not-verified "what you could not check"
    ```
-6. Report to the author: the verdict, the findings most severe first, what you checked, and what you did not.
+6. Report to the author: the verdict, the findings most severe first, and what you could not verify.
 
 ## After the evaluation (author)
 
@@ -109,6 +126,7 @@ This is the instruction you work to.
 ## Errors
 
 - `GATE_FAILED` on `plan review`: a ready verdict was attempted with a P0 or P1 finding. Record `not-ready`.
+- `INVALID_ARGUMENT` with `details.problems`: the checklist is incomplete; each line names the area and what is missing.
 - `CONFLICT`: the plan changed since you read it. Read it again and evaluate the current one.
 - `POLICY_PROHIBITED`: the author tried to record its own evaluation.
 - `GATE_FAILED` on `repo commit` or `pr create` with `gate: plan-review`: the current plan is missing, not evaluated, changed since evaluation, or not ready.

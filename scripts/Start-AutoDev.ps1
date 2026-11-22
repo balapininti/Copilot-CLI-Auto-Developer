@@ -40,6 +40,10 @@
 .PARAMETER Workspace
     Workspace root. Default: the parent of the repository folder.
 
+.PARAMETER Model
+    Model for this session, passed to Copilot CLI as --model. Default: whatever
+    Copilot CLI is set to. Use the name Copilot CLI shows under /model.
+
 .PARAMETER InstallUserLevel
     Also copy the agents and skills into the user-level Copilot folders
     (autodev discovery install) before starting.
@@ -67,6 +71,9 @@ param(
     [string]$Agent = 'auto-developer',
 
     [string]$Workspace = '',
+
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$')]
+    [string]$Model = '',
 
     [switch]$InstallUserLevel
 )
@@ -349,12 +356,15 @@ try {
         # --add-dir lets the session read and edit the project clones, which live
         # outside the repository folder (confirmed present in Copilot CLI 1.0.114).
         $projectsDir = Join-Path -Path $Workspace -ChildPath 'projects'
+        $copilotArguments = @('--agent', $Agent)
         if (Test-Path -LiteralPath $projectsDir) {
-            & $copilotPath '--agent' $Agent '--add-dir' $projectsDir
+            $copilotArguments += @('--add-dir', $projectsDir)
         }
-        else {
-            & $copilotPath '--agent' $Agent
+        if ($Model -ne '') {
+            # --model is Copilot CLI's documented way to choose the session model.
+            $copilotArguments += @('--model', $Model)
         }
+        & $copilotPath @copilotArguments
         $exitCode = $LASTEXITCODE
     } while ($false)
 }

@@ -89,6 +89,7 @@ Copilot CLI discovers agents and skills from `.github\agents` and `.github\skill
 | Repositories cloned only from approved URLs; dirty clones preserved | Host allowlist; no reset, clean or force exists in the code |
 | The story's release branch is the base; a missing one is a blocker | Verified on the remote; no fallback to the default branch |
 | No commit or PR until the story's plan has been independently evaluated as ready | The verdict is bound to the hash of the plan; a P0 or P1 finding cannot be signed off; the author cannot record its own evaluation (`policies.planReview`) |
+| A review sign-off covers every area | A ready plan verdict and a passing code review each need a nine-area checklist stating what was looked at; a missing or unchecked area is refused |
 | A PR only after tests, automated review and independent review pass for the exact code | Gate results are bound to a git tree id |
 | No PR, ticket, comment, schema change or start of defect work without the configured approval | Approvals bound to a SHA-256 of the exact payload, single-use, decided at a real terminal |
 | A baseline end-to-end scenario cannot be changed without approval | Only `scenario apply` writes one; an edited scenario fails its integrity check and is not run as a baseline; an update names every expectation it removes |
@@ -117,6 +118,7 @@ node scripts\autodev.mjs help
 | Project | `project list/show/validate/resolve/repos/schemas/guidelines`, `session status/select`, `service hosts` |
 | Access | `auth status/login`, `agility verify/boards/story/comment/status` |
 | Code | `repo status/prepare/diff/commit`, `java detect`, `db2 tables/describe/query`, `browser run` |
+| Guidance | `next` (the one next step), `context` (one trimmed bundle per task), `plan check` (looked-up facts about a plan), `code refs` (who uses an identifier) |
 | Quality | `plan submit/show/review`, `test run`, `review run/record`, `run show`, `pr create` |
 | End-to-end scenarios | `scenario import/run/propose/apply/list/show/affected` |
 | Monitoring | `splunk search`, `dynatrace problems/metrics`, `monitor run/status/verify-resolution`, `incident list/show/classify/link-pr/close`, `handoff list/authorize/next/complete` |
@@ -132,6 +134,7 @@ node scripts\autodev.mjs help
 | [docs/security.md](docs/security.md) | What is enforced and where, approvals, the hook, threat model and limits |
 | [docs/unsupported.md](docs/unsupported.md) | Verification status of every integration; features deliberately not supported |
 | [docs/onboarding.md](docs/onboarding.md) | Onboarding questions, the manifest, what to do afterwards |
+| [docs/smaller-models.md](docs/smaller-models.md) | What the framework does so that a smaller model still gets the workflow right, and how to choose the model |
 | [docs/plan-review.md](docs/plan-review.md) | The plan every change starts from, the evaluation prompt, the P0 to P4 scale and how the gate is enforced |
 | [docs/e2e-scenarios.md](docs/e2e-scenarios.md) | Building baseline end-to-end scenarios from a recorded HAR, running them, and keeping them current as the code changes |
 | [docs/monitoring.md](docs/monitoring.md) | The monitoring worker, scheduling, incident lifecycle, handoff |

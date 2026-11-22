@@ -24,6 +24,7 @@ import { appendAudit } from '../core/audit.js';
 import { AutoDevError, ErrorCodes } from '../core/errors.js';
 import { sha256 } from '../core/hash.js';
 import { containsSecret, redactString } from '../core/redact.js';
+import { assertFindingsHaveAreas, normalizeChecklist, PLAN_AREAS } from './checklist.js';
 import { addHistory, loadRun, updateRun } from './run-store.js';
 
 export const PRIORITIES = Object.freeze(['P0', 'P1', 'P2', 'P3', 'P4']);
@@ -123,14 +124,16 @@ export function normalizeFindings(input) {
       // A blocking finding stops the work, so it must be checkable and actionable.
       throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `findings[${index}] is ${priority}: it needs "evidence" (the file and line, acceptance criterion or fact it rests on) and a "recommendation" (the change to the plan that resolves it).`);
     }
-    return { priority, title, detail, evidence: evidence || null, recommendation: recommendation || null };
+    const area = finding.area === undefined || finding.area === null ? null : String(finding.area);
+    return { priority, area, title, detail, evidence: evidence || null, recommendation: recommendation || null };
   }).sort((a, b) => a.priority.localeCompare(b.priority));
 }
 
 /**
  * Record the evaluation of the current plan.
  * @param {import('../core/workspace.js').Workspace} workspace
- * @param {{ projectId: string, storyId: string, planHash: string, verdict: string, reviewer: string, findings: unknown, checked?: string | null, notVerified?: string | null }} input
+ * @param {{ projectId: string, storyId: string, planHash: string, verdict: string, reviewer: string, findings: unknown, areas?: unknown, checked?: string | null, notVerified?: string | null }} input
+ *   `areas`: the checklist, one entry per area in PLAN_AREAS. Required for a ready verdict.
  */
 export async function reviewPlan(workspace, input) {
   if (!VERDICTS.includes(input.verdict)) throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `--verdict must be one of: ${VERDICTS.join(', ')}.`);
@@ -148,11 +151,10 @@ export async function reviewPlan(workspace, input) {
       { details: { blocking: blocking.map((finding) => `${finding.priority}: ${finding.title}`) } },
     );
   }
+  // "Looks good" is not an evaluation. A sign-off says, area by area, what was actually examined.
+  const checklist = normalizeChecklist(input.areas, PLAN_AREAS, { signOff: input.verdict === 'ready' });
+  assertFindingsHaveAreas(checklist, findings, PLAN_AREAS);
   const checked = redactString(String(input.checked ?? '').replace(/\s+/g, ' ').trim(), { pii: true }).slice(0, 2000);
-  if (input.verdict === 'ready' && checked.length < 40) {
-    // "Looks good" is not an evaluation. A sign-off says what was actually examined.
-    throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'A "ready" verdict needs --checked: what you verified against the ticket and the code (at least a sentence).');
-  }
   const notVerified = redactString(String(input.notVerified ?? '').replace(/\s+/g, ' ').trim(), { pii: true }).slice(0, 1000) || null;
 
   const result = await updateRun(workspace, input.projectId, input.storyId, (run) => {
@@ -169,6 +171,7 @@ export async function reviewPlan(workspace, input) {
       reviewer,
       findings,
       counts: Object.fromEntries(PRIORITIES.map((priority) => [priority, findings.filter((finding) => finding.priority === priority).length])),
+      checklist,
       checked: checked || null,
       notVerified,
       at: new Date().toISOString(),

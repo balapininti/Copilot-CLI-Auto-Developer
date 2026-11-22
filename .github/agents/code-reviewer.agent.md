@@ -12,23 +12,31 @@ Commands are written `autodev <command>`; run them as `node "$env:AUTODEV_HOME\s
 
 ## Procedure
 
-1. **Context.** `autodev project guidelines --task review` for the project's coding, architecture and testing standards. `autodev agility story <S-…>` for the acceptance criteria. `autodev plan show --story <S-…>` for the evaluated plan and its findings. Review against these, not against personal taste.
+1. **Context.** `autodev context --story <S-…> --task review --repo <name>`: one call gives the acceptance criteria, the evaluated plan and its open findings, the project's standards and the nine `checklistAreas` you must cover. Review against these, not against personal taste.
 2. **The change.** `autodev repo diff --story <S-…> --repo <name>` gives every difference from the release branch. Read the surrounding code, not just the changed lines.
 3. **Automated findings.** `autodev review run --story <S-…> --repo <name>`. Treat each finding as a prompt to look, then judge it yourself. The checks are patterns; they miss things and sometimes flag things that are fine.
 4. **Review** each of these, and write down what you checked:
    - **Correctness**: does it do what each acceptance criterion says? Null and empty cases, error paths, boundaries, concurrency, transactions.
    - **Security**: input validation, authorization checks, injection (SQL built by concatenation is a fail), secrets, what gets logged.
    - **Standards**: layering, naming, exception handling, logging and dependency rules from the project guidelines.
-   - **Regression risk**: who else calls what changed? Other repositories of this project that consume it? Behaviour changes that tests do not cover?
+   - **Regression risk**: who else calls what changed (`autodev code refs --symbol <Name>`)? Other repositories of this project that consume it? Behaviour changes that tests do not cover?
    - **Performance**: queries in loops, missing limits, unbounded collections, blocking calls on hot paths.
    - **Data safety**: schema or migration changes (need explicit authorization), destructive statements, data written without validation.
    - **Tests**: do the tests actually exercise the change and its failure cases? Would they fail without it? `autodev run show --story <S-…>` shows the recorded test results; a required stage that did not run is a fail.
    - **Plan**: does the change do what the evaluated plan says, including every edge case and test it listed and every P2 finding the user did not waive? Code that departs from the plan without the plan having been updated and re-evaluated is a blocking finding.
    - **End-to-end scenarios**: `autodev scenario affected --story <S-…> --repo <name>` lists the approved journeys this change touches. Were they run, against a build that contains the change? If the author proposed a scenario update (`autodev scenario list`), does the story justify every expectation it removes? A scenario weakened to fit the change is a blocking finding.
-5. **Verdict.** Classify each finding as BLOCKING or ADVISORY, with file, line and a concrete reason.
+5. **Verdict.** Classify each finding as BLOCKING or ADVISORY, with file, line and a concrete reason. Write the checklist file (one entry per area):
+
+   ```json
+   { "correctness": { "status": "ok", "looked": "Traced each acceptance criterion through PricingService.price()." },
+     "regression":  { "status": "findings", "looked": "autodev code refs --symbol PricingService: InvoiceJob is not covered." },
+     "data":        { "status": "not-applicable", "looked": "The diff has no SQL, schema or migration file." } }
+   ```
+
+   `status` is `ok`, `findings`, `not-applicable` or `not-checked`. All nine areas are needed for a pass.
    - Any blocking finding → `autodev review record --story <S-…> --repo <name> --verdict fail --reviewer code-reviewer --notes "<the blocking findings, briefly>"`
-   - None → `autodev review record --story <S-…> --repo <name> --verdict pass --reviewer code-reviewer --notes "<what you verified>"`
-   - The command refuses a pass while automated blockers remain. Do not look for a way around that.
+   - None → `autodev review record --story <S-…> --repo <name> --verdict pass --reviewer code-reviewer --checklist <file> --notes "<what you verified>"`
+   - The command refuses a pass while automated blockers remain or an area is unchecked. Do not look for a way around that.
 6. **Report** to the caller: verdict, blocking findings (file:line, why, what would resolve it), advisory findings, and what you did not review and why.
 
 ## Standards for your own review

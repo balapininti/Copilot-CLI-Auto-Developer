@@ -143,6 +143,13 @@ The change is confined to one pure function. Rolling back is reverting the commi
 The discount rate is the one stated in the story. No open questions.
 `;
 
+const DEMO_PLAN_AREAS = Object.fromEntries(
+  ['requirements', 'feasibility', 'edge-cases', 'blast-radius', 'data', 'security', 'tests', 'operations', 'assumptions'].map((area) => [
+    area,
+    { status: area === 'data' || area === 'security' ? 'not-applicable' : 'ok', looked: 'Compared the plan with the story and with src/pricing.js and its test.' },
+  ]),
+);
+
 const PRICING_TEST_V2 = `${PRICING_TEST_V1}
 test('applies the loyalty discount for members', () => {
   assert.equal(price({ quantity: 2, unitPrice: 5, loyaltyMember: true, discountRate: 0.1 }), 9);
@@ -295,19 +302,22 @@ export async function runDemo(options = {}) {
     const plan = /** @type {any} */ (await submitPlan(workspace, { projectId: ORDERS, storyId: STORY, text: DEMO_PLAN }));
     check('a plan is recorded but is not ready until someone else evaluates it', plan.readiness.ok === false && plan.review === null);
     await expectError('the author cannot sign off its own plan', 'POLICY_PROHIBITED', () =>
-      reviewPlan(workspace, { projectId: ORDERS, storyId: STORY, planHash: plan.planHash, verdict: 'ready', reviewer: 'auto-developer', findings: [], checked: 'Compared the plan with the story and with pricing.js.' }),
+      reviewPlan(workspace, { projectId: ORDERS, storyId: STORY, planHash: plan.planHash, verdict: 'ready', reviewer: 'auto-developer', findings: [], areas: DEMO_PLAN_AREAS }),
     );
     await expectError('a plan with a P1 finding cannot be recorded as ready', 'GATE_FAILED', () =>
       reviewPlan(workspace, {
         projectId: ORDERS, storyId: STORY, planHash: plan.planHash, verdict: 'ready', reviewer: 'demo-plan-reviewer',
         findings: [{ priority: 'P1', title: 'Orders without a customer are not handled', detail: 'price() reads order.customer.loyalty and throws when customer is missing.', evidence: 'src/pricing.js', recommendation: 'Treat a missing customer as not a loyalty member and add a test for it.' }],
-        checked: 'Compared the plan with the story and with pricing.js.',
+        areas: DEMO_PLAN_AREAS,
       }),
+    );
+    await expectError('a sign-off that leaves a review area unchecked is refused', 'INVALID_ARGUMENT', () =>
+      reviewPlan(workspace, { projectId: ORDERS, storyId: STORY, planHash: plan.planHash, verdict: 'ready', reviewer: 'demo-plan-reviewer', findings: [], areas: { ...DEMO_PLAN_AREAS, 'blast-radius': { status: 'not-checked', looked: '' } } }),
     );
     const planReview = await reviewPlan(workspace, {
       projectId: ORDERS, storyId: STORY, planHash: plan.planHash, verdict: 'ready', reviewer: 'demo-plan-reviewer',
       findings: [{ priority: 'P3', title: 'Discount rate is a literal', detail: 'The 10 percent rate is written in the function; a constant would be easier to change.' }],
-      checked: 'Each acceptance criterion maps to a change and a test; pricing.js has no other callers in this repository.',
+      areas: DEMO_PLAN_AREAS,
     });
     check('an independent evaluation with no P0 or P1 findings makes the plan ready', planReview.readiness.ok && planReview.review?.counts.P3 === 1);
 

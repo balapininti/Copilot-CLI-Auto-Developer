@@ -37,6 +37,8 @@ Confined to one service class. Roll back by reverting the commit.
 The rate comes from APP.DISCOUNT. No open questions.
 `;
 const CHECKED = 'Mapped both acceptance criteria to changes and tests; read PricingService and its two callers.';
+const AREA_NAMES = ['requirements', 'feasibility', 'edge-cases', 'blast-radius', 'data', 'security', 'tests', 'operations', 'assumptions'];
+const areas = (/** @type {Record<string, any>} */ over = {}) => ({ ...Object.fromEntries(AREA_NAMES.map((name) => [name, { status: 'ok', looked: 'Read PricingService and its two callers.' }])), ...over });
 const p1 = () => ({ priority: 'P1', title: 'Null customer is not handled', detail: 'price() dereferences order.getCustomer() and throws for guest orders.', evidence: 'PricingService.java:42', recommendation: 'Treat a missing customer as a non-member and add a test.' });
 const p3 = () => ({ priority: 'p3', title: 'Rate is a literal', detail: 'A named constant would be easier to change later.' });
 
@@ -51,7 +53,7 @@ describe('plan', () => {
 
   const submit = (text = PLAN) => /** @type {Promise<any>} */ (submitPlan(ws.workspace, { projectId: P, storyId: S, text }));
   const review = (/** @type {Record<string, any>} */ over) =>
-    reviewPlan(ws.workspace, { projectId: P, storyId: S, planHash: '', verdict: 'ready', reviewer: 'plan-reviewer', findings: [], checked: CHECKED, ...over });
+    reviewPlan(ws.workspace, { projectId: P, storyId: S, planHash: '', verdict: 'ready', reviewer: 'plan-reviewer', findings: [], areas: areas(), checked: CHECKED, ...over });
 
   test('the plan gate is required by default and can only be relaxed explicitly', () => {
     assert.equal(parseManifest('id: p\n').manifest.policies.planReview, 'required');
@@ -101,18 +103,30 @@ describe('plan', () => {
       const error = await expectCode(() => review({ planHash: plan.planHash, findings: [{ ...p1(), priority }, p3()] }), 'GATE_FAILED', /cannot be recorded as ready/);
       assert.deepEqual(error.details.blocking, [`${priority}: Null customer is not handled`]);
     }
-    const recorded = await review({ planHash: plan.planHash, verdict: 'not-ready', findings: [p3(), p1()], checked: '' });
+    const recorded = await review({ planHash: plan.planHash, verdict: 'not-ready', findings: [p3(), p1()], areas: undefined, checked: '' });
     assert.equal(recorded.readiness.ok, false);
     assert.match(recorded.readiness.blockers[0].reason, /not ready \(0 P0, 1 P1\)/);
     assert.deepEqual(recorded.review?.findings.map((/** @type {any} */ finding) => finding.priority), ['P1', 'P3'], 'findings are ordered most severe first');
     assert.deepEqual(recorded.review?.counts, { P0: 0, P1: 1, P2: 0, P3: 1, P4: 0 });
   });
 
-  test('a sign-off must say what was checked, and may carry P2 to P4 findings', async () => {
+  test('a sign-off needs every area of the checklist, and may carry P2 to P4 findings', async () => {
     const plan = await submit();
-    await expectCode(() => review({ planHash: plan.planHash, checked: 'LGTM' }), 'INVALID_ARGUMENT', /what you verified/);
-    await expectCode(() => review({ planHash: plan.planHash, checked: null }), 'INVALID_ARGUMENT');
-    const ready = await review({ planHash: plan.planHash, findings: [{ ...p3(), priority: 'P2' }, p3(), { ...p3(), priority: 'P4' }], notVerified: 'Did not run the integration stage.' });
+    const noChecklist = await expectCode(() => review({ planHash: plan.planHash, areas: undefined }), 'INVALID_ARGUMENT', /needs a checklist/);
+    assert.deepEqual(Object.keys(noChecklist.details.areas), AREA_NAMES);
+    const unchecked = await expectCode(() => review({ planHash: plan.planHash, areas: areas({ 'blast-radius': { status: 'not-checked', looked: '' } }) }), 'INVALID_ARGUMENT', /checklist is incomplete/);
+    assert.deepEqual(unchecked.details.problems, ['blast-radius: not checked']);
+    const { security: _security, ...withoutSecurity } = areas();
+    assert.deepEqual((await expectCode(() => review({ planHash: plan.planHash, areas: withoutSecurity }), 'INVALID_ARGUMENT')).details.problems, ['security: missing']);
+    await expectCode(() => review({ planHash: plan.planHash, areas: areas({ tests: { status: 'ok', looked: 'LGTM' } }) }), 'INVALID_ARGUMENT');
+    await expectCode(() => review({ planHash: plan.planHash, areas: areas({ data: { status: 'not-applicable', looked: '' } }) }), 'INVALID_ARGUMENT');
+    await expectCode(() => review({ planHash: plan.planHash, areas: { ...areas(), style: { status: 'ok', looked: 'Looked at the naming used.' } } }), 'INVALID_ARGUMENT', /Unknown checklist area/);
+    // A finding filed under an area the checklist calls "ok" is a contradiction.
+    await expectCode(() => review({ planHash: plan.planHash, findings: [{ ...p3(), area: 'tests' }] }), 'INVALID_ARGUMENT', /marks that area "ok"/);
+    await expectCode(() => review({ planHash: plan.planHash, findings: [{ ...p3(), area: 'vibes' }] }), 'INVALID_ARGUMENT');
+    const ready = await review({ planHash: plan.planHash, findings: [{ ...p3(), priority: 'P2', area: 'tests' }, p3(), { ...p3(), priority: 'P4' }], areas: areas({ tests: { status: 'findings', looked: 'Compared the planned tests with the edge cases.' }, data: { status: 'not-applicable', looked: 'The plan touches no table or stored data.' } }), notVerified: 'Did not run the integration stage.' });
+    assert.equal(ready.review?.checklist.data.status, 'not-applicable');
+    assert.equal(ready.review?.findings[0].area, 'tests');
     assert.equal(ready.readiness.ok, true);
     assert.equal(ready.review?.verdict, 'ready');
     assert.equal(ready.review?.notVerified, 'Did not run the integration stage.');
@@ -138,7 +152,7 @@ describe('plan', () => {
     const second = await review({ planHash: revised.planHash });
     assert.equal(second.readiness.ok, true);
     assert.equal(second.review?.round, 2, 'rounds are counted across revisions of the plan');
-    await expectCode(() => reviewPlan(ws.workspace, { projectId: P, storyId: 'S-07777', planHash: plan.planHash, verdict: 'ready', reviewer: 'plan-reviewer', findings: [], checked: CHECKED }), 'GATE_FAILED', /No plan has been submitted/);
+    await expectCode(() => reviewPlan(ws.workspace, { projectId: P, storyId: 'S-07777', planHash: plan.planHash, verdict: 'ready', reviewer: 'plan-reviewer', findings: [], areas: areas() }), 'GATE_FAILED', /No plan has been submitted/);
   });
 
   test('findings are validated: priority, substance, and evidence for anything blocking', async () => {
@@ -176,7 +190,10 @@ describe('plan', () => {
     const notReady = await run(['plan', 'review', '--story', S, '--plan-hash', hash, '--verdict', 'not-ready', '--reviewer', 'plan-reviewer', '--findings', findingsFile]);
     assert.equal(notReady.envelope.data.readiness.ok, false);
     fs.writeFileSync(findingsFile, '[]');
-    const ready = await run(['plan', 'review', '--story', S, '--plan-hash', hash, '--verdict', 'ready', '--reviewer', 'plan-reviewer', '--findings', findingsFile, '--checked', CHECKED]);
+    const bare = await run(['plan', 'review', '--story', S, '--plan-hash', hash, '--verdict', 'ready', '--reviewer', 'plan-reviewer', '--findings', findingsFile]);
+    assert.equal(bare.envelope.error.code, 'INVALID_ARGUMENT', 'a bare list of findings is not a sign-off');
+    fs.writeFileSync(findingsFile, JSON.stringify({ areas: areas(), findings: [] }));
+    const ready = await run(['plan', 'review', '--story', S, '--plan-hash', hash, '--verdict', 'ready', '--reviewer', 'plan-reviewer', '--findings', findingsFile]);
     assert.equal(ready.envelope.data.readiness.ok, true);
     assert.equal(ready.envelope.data.review.round, 2);
     const shown = await run(['plan', 'show', '--story', S]);

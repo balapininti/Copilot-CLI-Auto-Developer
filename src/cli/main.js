@@ -21,6 +21,7 @@ import { resolveWorkspace } from '../core/workspace.js';
 import { integrationCommands } from './commands/integrations.js';
 import { monitoringCommands } from './commands/monitoring.js';
 import { projectCommands } from './commands/project.js';
+import { assistCommands } from './commands/assist.js';
 import { scenarioCommands } from './commands/scenario.js';
 
 /** @type {Record<string, { type: 'string' | 'boolean', multiple?: boolean }>} */
@@ -88,6 +89,9 @@ const OPTIONS = {
   path: { type: 'string', multiple: true },
   guidelines: { type: 'string' },
   'plan-hash': { type: 'string' },
+  checklist: { type: 'string' },
+  symbol: { type: 'string' },
+  'max-chars': { type: 'string' },
   findings: { type: 'string' },
   checked: { type: 'string' },
   'not-verified': { type: 'string' },
@@ -114,7 +118,7 @@ const OPTIONS = {
  */
 
 /** @type {Record<string, Command>} */
-export const COMMANDS = { ...projectCommands, ...integrationCommands, ...monitoringCommands, ...scenarioCommands };
+export const COMMANDS = { ...projectCommands, ...integrationCommands, ...monitoringCommands, ...scenarioCommands, ...assistCommands };
 
 function helpText() {
   const names = Object.keys(COMMANDS).sort();

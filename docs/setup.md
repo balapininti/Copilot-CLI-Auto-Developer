@@ -295,6 +295,8 @@ First-session checks, because these have not been exercised in a signed-in sessi
 2. `/skills list` shows the 18 skills.
 3. Ask the agent to run `git push`. The hook should refuse it.
 
+To run the session on a particular model, add `-Model <name>` (the name Copilot CLI shows under `/model`). See [smaller-models.md](smaller-models.md).
+
 Then give it work:
 
 > Implement story S-01234 from board 501.

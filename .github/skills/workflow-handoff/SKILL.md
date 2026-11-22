@@ -5,7 +5,7 @@ description: "Passes approved Agility defects from the monitoring pipeline to th
 
 # Workflow handoff
 
-Commands are written `autodev <command>`. Run them as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>` (from the automation folder: `node scripts/autodev.mjs <command>`). Each prints one JSON envelope: check `ok`, then read `data` or branch on `error.code`. `--dry-run` shows what a command would do without writing anywhere.
+Run `autodev <command>` as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>`; each prints one JSON envelope (`ok`, then `data` or `error.code`).
 
 Handoff is not permission to change code. A queued defect becomes workable only when the project's policy says development may start: either `monitoring.incidentPolicy.autoStartDevelopment: true`, or a person approved that specific task.
 

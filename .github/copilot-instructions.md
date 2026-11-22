@@ -33,6 +33,10 @@ Branch on `error.code`, never on the wording of a message. Add `--dry-run` to an
 10. **No code before an evaluated plan.** A change starts with a written plan that someone other than its author has evaluated as ready (`plan-review` skill). The author never records that evaluation, and a plan that changes is evaluated again.
 11. **No silent learning.** Nothing is saved to a project's knowledge unless the user approves the exact text through `autodev learn propose`.
 
+## When you are unsure what to do
+
+Run `autodev next --story <S-…>`. It gives the one next step, who does it and the command. Use `autodev context --story <S-…> --task <task>` to get what that step needs in one call.
+
 ## When something blocks you
 
 Stop and report it with: what you were doing, the command and its `error.code`, what is needed to unblock, and who can provide it. A clear blocker is a good outcome; guessing past one is not.

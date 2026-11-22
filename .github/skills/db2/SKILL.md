@@ -5,7 +5,7 @@ description: "Read-only DB2 access scoped to the project's schemas: list tables,
 
 # DB2 (read-only)
 
-Commands are written `autodev <command>`. Run them as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>` (from the automation folder: `node scripts/autodev.mjs <command>`). Each prints one JSON envelope: check `ok`, then read `data` or branch on `error.code`. `--dry-run` shows what a command would do without writing anywhere.
+Run `autodev <command>` as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>`; each prints one JSON envelope (`ok`, then `data` or `error.code`).
 
 DB2 uses its own approved native authentication through a stored connection profile. There is no browser fallback, and no write path.
 

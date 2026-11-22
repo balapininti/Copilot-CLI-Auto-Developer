@@ -5,7 +5,7 @@ description: "Works with the project's Bitbucket repositories: clone or reuse a 
 
 # Bitbucket and git
 
-Commands are written `autodev <command>`. Run them as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>` (from the automation folder: `node scripts/autodev.mjs <command>`). Each prints one JSON envelope: check `ok`, then read `data` or branch on `error.code`. `--dry-run` shows what a command would do without writing anywhere.
+Run `autodev <command>` as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <command>`; each prints one JSON envelope (`ok`, then `data` or `error.code`).
 
 Use these commands for repository operations instead of raw `git` for anything that fetches, switches branch, commits or pushes. Reading with `git status`, `git log`, `git diff` and `git show` is fine.
 
