@@ -16,7 +16,9 @@ Copilot CLI session
       |
       v   node scripts/autodev.mjs <command>     one JSON result envelope per call
 autodev CLI   src/cli
-  workflow    src/workflow     run state and gates, pull requests, learning, scenarios, onboarding, discovery
+  workflow    src/workflow     next step, context bundle, plans and plan facts, run state and gates,
+                               review checklists, pull requests, learning and learning signals,
+                               scenarios, onboarding, discovery
   monitoring  src/monitoring   incident model, correlation, worker, handoff queue
   adapters    src/adapters     agility, bitbucket (git + REST), db2, java, testing, review, splunk, dynatrace, browser
   core        src/core         errors, results, redaction, logging, state, audit, approvals,
@@ -49,7 +51,7 @@ C:\DevWorkspace\
   projects\<project-id>\
     project.yaml               mappings and policies; names of secrets, never values
     guidelines\*.md            the team's standards
-    knowledge\<skill>\approved.md   learnings, written only after approval
+    knowledge\<area>\approved.md    learnings, written after approval (or unreviewed, if opted in)
     scenarios\<name>.json       baseline end-to-end journeys, written only after approval
     repos\<repo-name>\         clones the agent works in
   state\                       written only by the autodev CLI
@@ -77,6 +79,14 @@ Copilot CLI finds custom agents in `.github/agents` of the folder it is started 
 
 **The plan is evaluated before the code exists.** A story's plan is recorded and evaluated by an agent that did not write it. The verdict is bound to the hash of the plan text, so a revised plan needs a new evaluation, and a plan with a blocking finding cannot be signed off. See [plan-review.md](plan-review.md).
 
+**The order of work is computed, not remembered.** `autodev next` derives the one next step from recorded state: who acts, the command, and why. An agent that loses track, or a session that is restarted, asks again and gets the same answer. `autodev context` gives each step one trimmed bundle of what it needs.
+
+**Facts are looked up before anything is judged.** Whether a named file exists and who else uses a class are not matters of opinion, so `plan check` and `code refs` find them, and the reviewer starts from them.
+
+**A sign-off names what it covered.** A ready plan verdict and a passing code review each carry a nine-area checklist stating what was looked at. An area left out or unchecked is refused.
+
+**Learning is always attempted and, by default, always approved.** Every story ends with a search of the recorded history for evidence worth turning into a rule. A rule is saved only when a person approves its exact text, unless the project owner has opted in to saving without review; either way there is one write path, an integrity record, and a way for a person to remove a rule.
+
 **Gates are bound to code.** Test and review results are recorded against a git tree id, a fingerprint of the entire working tree. A pull request can be created only when the committed tree has that id. "Tests passed" can never refer to an earlier version of the change.
 
 **Write-ahead for external writes.** Before a ticket is created, the intent is saved. If the process dies mid-write, the next pass looks the ticket up by its idempotency marker before doing anything else.
@@ -100,20 +110,30 @@ Exit codes: `0` success, `1` unexpected, `2` usage or configuration, `3` waiting
 
 ## Ticket to pull request
 
+The agent asks `autodev next` before every step; the order below is computed from recorded state, not held in the agent's instructions.
+
 ```
-project resolve -> session select -> agility story -> project guidelines
+project resolve -> session select
+   -> agility story       the ticket; its acceptance criteria are kept with the story
    -> repo prepare        clone/reuse, verify release branch, create feature branch
+   -> context, code refs  one trimmed bundle for planning; who uses what will change
    -> plan submit         the written plan: criteria, changes, edge cases, tests, risks
-   -> plan-reviewer       evaluates it against the ticket and the code, findings P0 to P4;
-                          records "ready" for that exact plan text, or sends it back
+   -> plan check          looked-up facts: named files and identifiers, unmentioned callers,
+                          criteria the plan may skip
+   -> plan-reviewer       evaluates nine areas against the ticket and the code, findings P0 to P4;
+                          records "ready" for that exact plan text, or sends it back (up to 3 rounds)
    -> (plan confirmed by the user)
    -> edit code           the agent, inside projects/<id>/repos only
    -> test run            records gate "tests"              (tree id)
+      scenario run        affected end-to-end scenarios; evidence, not a gate
    -> review run          records gate "automated-review"   (tree id)
-   -> code-reviewer       records gate "independent-review" (tree id)
+   -> code-reviewer       nine-area checklist; records gate "independent-review" (tree id)
    -> repo commit         refused unless the plan is ready and all three gates match the working tree
    -> pr create           gates checked against the commit, then the createPR policy,
                           then push + open PR. Never merged.
+   -> learn suggest       what went wrong on this story and what keeps recurring;
+                          a rule is proposed for approval, or the signal is dismissed
+   -> report
 ```
 
 ## Monitoring to development

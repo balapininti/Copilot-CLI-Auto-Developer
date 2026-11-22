@@ -16,6 +16,8 @@ How the framework works, in pictures. GitHub renders these Mermaid diagrams in p
 12. [Learning](#12-learning)
 13. [End-to-end scenarios from a HAR](#13-end-to-end-scenarios-from-a-har)
 14. [Onboarding from what already exists](#14-onboarding-from-what-already-exists)
+15. [The next-step loop](#15-the-next-step-loop)
+16. [Plan evaluation](#16-plan-evaluation)
 
 ## 1. The system on one page
 
@@ -30,8 +32,8 @@ flowchart LR
         direction TB
         copilot["GitHub Copilot CLI session<br/>agents + skills + hook"]
         cli["autodev CLI<br/>node scripts/autodev.mjs"]
-        projects[("projects/#lt;id#gt;<br/>project.yaml, guidelines,<br/>knowledge, repos")]
-        state[("state<br/>approvals, audit, runs,<br/>incidents, handoff queue")]
+        projects[("projects/#lt;id#gt;<br/>project.yaml, guidelines,<br/>knowledge, scenarios, repos")]
+        state[("state<br/>approvals, audit, runs and plans,<br/>incidents, handoff queue")]
         creds[("Windows Credential Manager<br/>and environment variables")]
     end
 
@@ -72,7 +74,7 @@ flowchart TB
 
     subgraph code["Code: what enforces the rules (src)"]
         clilayer["cli<br/>argument parsing, JSON envelope, exit codes"]
-        workflow["workflow<br/>run state and gates, pull requests,<br/>learning, onboarding, discovery"]
+        workflow["workflow<br/>next step, context bundle, plans and plan facts,<br/>run state and gates, review checklists, pull requests,<br/>learning and learning signals, scenarios, onboarding"]
         monitoring["monitoring<br/>incident model, correlation, worker,<br/>defect draft, handoff queue"]
         adapters["adapters<br/>agility, bitbucket, db2, java, testing,<br/>review, splunk, dynatrace, browser"]
         core["core<br/>project scope, manifest, approvals, audit,<br/>secrets, auth, HTTP, redaction, state store"]
@@ -96,13 +98,13 @@ flowchart TB
 | Skills | `.github/skills` | How to use one capability. Generic: no URL, project name or team rule appears in a skill. |
 | Hook | `.github/hooks`, `scripts/hooks` | A net under the agents: blocks direct `git push`, direct writes to `state\` and `knowledge\`, and similar. |
 | CLI | `src/cli` | One command in, one JSON envelope out. |
-| Workflow, monitoring | `src/workflow`, `src/monitoring` | The two business flows. |
+| Workflow, monitoring | `src/workflow`, `src/monitoring` | The two business flows. The order of the development workflow is computed here (`next.js`), not held in an agent's instructions. |
 | Adapters | `src/adapters` | One per external system; each returns the same shapes whatever the transport. |
 | Core | `src/core` | Everything every command depends on. Scope, approvals and audit live here, so no adapter can skip them. |
 
 ## 3. Where a skill gets its URLs, tokens and process
 
-Skills never contain company facts. When a skill runs a command, `autodev` puts the facts together from five places. Setting these up is what [setup.md](setup.md) walks through.
+Skills never contain company facts. When a skill runs a command, `autodev` puts the facts together from six places. Setting these up is what [setup.md](setup.md) walks through.
 
 ```mermaid
 flowchart LR
@@ -114,12 +116,14 @@ flowchart LR
         env["Environment variables<br/>the URLs: AGILITY_BASE_URL,<br/>BITBUCKET_BASE_URL, repo URLs ..."]
         store["Credential Manager<br/>the tokens: autodev/AGILITY_TOKEN ..."]
         guide["projects/#lt;id#gt;/guidelines/*.md<br/>your team's process and standards"]
-        know["projects/#lt;id#gt;/knowledge/#lt;skill#gt;/approved.md<br/>learnings a person approved"]
+        know["projects/#lt;id#gt;/knowledge/#lt;area#gt;/approved.md<br/>learnings a person approved<br/>(or saved unreviewed, if the project opted in)"]
+        scen["projects/#lt;id#gt;/scenarios/#lt;name#gt;.json<br/>baseline end-to-end journeys<br/>a person approved"]
     end
 
     resolve["autodev resolves the project scope"]
     scoped["Scoped, authenticated call<br/>to the one allowed host"]
-    context["Guidelines and learnings<br/>handed to the agent for the task"]
+    context["autodev context: one trimmed bundle<br/>guidelines and learnings for the task,<br/>ticket, plan, next step"]
+    e2e["autodev scenario run<br/>replayed in Edge"]
 
     skill --> resolve
     manifest -- "which variable, which secret,<br/>which board, repo, schema" --> resolve
@@ -129,6 +133,7 @@ flowchart LR
     guide --> context
     know -- "only if unchanged<br/>since approval" --> context
     resolve --> context
+    scen -- "only if unchanged<br/>since approval" --> e2e
 ```
 
 ## 4. What happens on one command
@@ -157,6 +162,8 @@ Exit codes: `0` success, `1` unexpected, `2` usage or configuration, `3` waiting
 
 ## 5. Ticket to pull request
 
+The agent does not hold this order in its instructions. Between steps it runs `autodev next`, which works out the one next step from what is recorded (diagram 15).
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -171,28 +178,36 @@ sequenceDiagram
     Dev->>AD: Implement story S-01234 from board 501
     AD->>CLI: project resolve, session select
     Note over CLI: The session is bound to one project<br/>and cannot change
+    loop Before every step
+        AD->>CLI: next --story S-01234
+        CLI-->>AD: The one next step, who acts, the command, why
+    end
     AD->>CLI: agility story S-01234
     CLI->>AG: read story
     AG-->>CLI: title, acceptance criteria, release branch, gaps
-    AD->>CLI: project guidelines --task plan
+    Note over CLI: Criteria are kept with the story,<br/>so later steps do not read the ticket again
     AD->>CLI: repo prepare
     CLI->>BB: clone or reuse, verify release branch
     Note over CLI: Creates feature/S-01234-slug.<br/>No release branch on the ticket is a blocker,<br/>not a fallback to main
+    AD->>CLI: context --task plan, code refs --symbol ...
     AD->>CLI: plan submit (criteria, changes, edge cases, tests, risks)
     AD->>PR: Evaluate this plan
-    PR->>CLI: plan show, agility story, reads the code
-    PR->>CLI: plan review, verdict and findings P0 to P4
-    Note over CLI: Bound to the hash of the plan text.<br/>Ready is refused while a P0 or P1 stands
+    PR->>CLI: context --task plan-review
+    CLI-->>PR: Plan, criteria, project rules and learnings,<br/>looked-up plan facts, nine checklist areas
+    PR->>CLI: plan review: verdict, nine-area checklist, findings P0 to P4
+    Note over CLI: Bound to the hash of the plan text.<br/>Ready is refused while a P0 or P1 stands<br/>or an area is unchecked
     PR-->>AD: Not ready: revise and resubmit. Ready: continue
-    AD->>Dev: Plan, P2 findings, and a question for every gap
+    AD->>Dev: Plan, P2 findings, what could not be verified
     Dev-->>AD: Confirms the plan
+    AD->>CLI: context --task implement
     AD->>AD: Edit code inside projects/id/repos only
-    AD->>CLI: test run
-    Note over CLI: Gate "tests" recorded for tree T
+    AD->>CLI: test run, scenario affected, scenario run
+    Note over CLI: Gate "tests" recorded for tree T.<br/>Scenario results are evidence, not a gate
     AD->>CLI: review run
     Note over CLI: Gate "automated-review" recorded for tree T
     AD->>RV: Review this change
-    RV->>CLI: repo diff, then review record
+    RV->>CLI: context --task review, repo diff, code refs
+    RV->>CLI: review record with a nine-area checklist
     Note over CLI: Gate "independent-review" recorded for tree T
     AD->>CLI: repo commit
     Note over CLI: Refused unless the plan is ready and<br/>all three gates match the working tree
@@ -203,29 +218,39 @@ sequenceDiagram
     AD->>CLI: pr create --approval apr-...
     CLI->>BB: push branch, open pull request
     CLI-->>AD: Pull request URL
-    AD->>Dev: PR link and summary. Never merged.
+    AD->>CLI: learn suggest --story S-01234
+    CLI-->>AD: What went wrong on this story, what keeps recurring
+    AD->>CLI: learn propose, or dismiss each signal
+    AD->>Dev: PR link, summary, rules waiting for approval. Never merged.
 ```
 
-If any step changes the code after a gate was recorded, that gate no longer matches and has to be run again. See the next diagram.
+If any step changes the code after a gate was recorded, that gate no longer matches and has to be run again. If the plan changes, its evaluation no longer matches either. See the next diagram.
 
 ## 6. Gates: why "tests passed" always means this code
 
+Four things must hold before a commit: one about the plan, three about the code. Each is bound to a fingerprint, so none can refer to an earlier version.
+
 ```mermaid
 flowchart LR
+    plan["Plan text"] -- "SHA-256" --> ph["Plan hash H"]
+    ph --> g0["plan-review = ready @ H<br/>no P0 or P1, nine areas covered"]
     wt["Working tree"] -- "git write-tree<br/>on a temporary index" --> tid["Tree id T<br/>fingerprint of every file"]
     tid --> g1["tests = pass @ T"]
     tid --> g2["automated-review = pass @ T"]
-    tid --> g3["independent-review = pass @ T"]
-    g1 --> commit{"repo commit:<br/>working tree is still T?"}
+    tid --> g3["independent-review = pass @ T<br/>nine areas covered"]
+    g0 --> commit{"repo commit:<br/>plan is still H and<br/>working tree is still T?"}
+    g1 --> commit
     g2 --> commit
     g3 --> commit
-    commit -- "no: something changed" --> rerun["GATE_FAILED<br/>run the gates again"]
+    commit -- "no: something changed" --> rerun["GATE_FAILED<br/>autodev next names the gate to redo"]
     commit -- yes --> c["Commit on the story branch"]
-    c --> pr{"pr create:<br/>committed tree is T?"}
+    c --> pr{"pr create:<br/>plan is still H and<br/>committed tree is T?"}
     pr -- no --> rerun
     pr -- yes --> policy["createPR policy and approval"]
     policy --> push["Push and open the pull request"]
 ```
+
+The plan gate can be made advisory per project (`policies.planReview: advisory`); the three code gates cannot.
 
 ## 7. Approvals
 
@@ -367,21 +392,31 @@ sequenceDiagram
 
 ## 12. Learning
 
-Nothing is remembered because an agent decided it should be.
+Every story ends with a learning check. By default nothing is saved without a person's approval; a project can opt in to saving without review.
 
 ```mermaid
-flowchart LR
-    notice["Agent notices something<br/>worth remembering"] --> propose["autodev learn propose<br/>stages the exact text"]
-    propose --> req["Approval request<br/>bound to the text's hash"]
+flowchart TB
+    done(["Every prepared repository has a pull request"]) --> suggest["autodev learn suggest --story S<br/>searches the recorded history"]
+    suggest --> signals["Signals, each with its evidence:<br/>a finding that sent this plan back,<br/>a gate that failed repeatedly,<br/>the same finding on several stories,<br/>an area where plans keep failing"]
+    signals --> decide{"Would a general rule<br/>have prevented it?"}
+    decide -- "no, or not sure" --> dismiss["learn suggest --dismiss<br/>with a reason. Not raised again"]
+    decide -- yes --> propose["autodev learn propose<br/>one rule, its evidence and source"]
+    propose --> checks{"No secret or personal data,<br/>a known area, file untampered?"}
+    checks -- no --> refused["Refused"]
+    checks -- yes --> mode{"learning.persistence<br/>in project.yaml"}
+    mode -- "explicit-approval-only<br/>(default)" --> req["Approval request<br/>bound to the text's hash"]
     req --> person{"Person reviews<br/>in their own terminal"}
     person -- deny --> drop["Nothing is written"]
     person -- approve --> apply["autodev learn apply<br/>writes exactly the approved text"]
-    apply --> file["knowledge/#lt;skill#gt;/approved.md"]
-    apply --> integ["Integrity record: SHA-256 of the file"]
+    mode -- "auto-save<br/>(set only by a person)" --> cap{"Fewer than 5<br/>saved today?"}
+    cap -- no --> limit["POLICY_PROHIBITED<br/>reported to the user instead"]
+    cap -- yes --> auto["Written at once, marked<br/>not reviewed by a person"]
+    apply --> file["knowledge/#lt;area#gt;/approved.md<br/>plus an integrity record"]
+    auto --> file
     file --> load{"On load: file matches<br/>the integrity record?"}
-    integ --> load
-    load -- yes --> use["Given to the agent with the guidelines"]
+    load -- yes --> use["Given to the agent doing the matching task<br/>on every later story (autodev context)"]
     load -- "no: edited by hand<br/>or by the agent" --> reject["Ignored and reported as rejected"]
+    file -. "a wrong rule" .-> remove["autodev learn remove<br/>a person only, outside a session"]
 ```
 
 ## 13. End-to-end scenarios from a HAR
@@ -438,3 +473,76 @@ sequenceDiagram
     AG->>P: Commands to set the URLs, names of secrets to store, what is still missing
     P->>P: Sets variables, stores tokens, starts a session for the project
 ```
+
+## 15. The next-step loop
+
+`autodev next --story S` reads what is recorded for the story and returns one step: who acts, the command, and why. The agent does that step and asks again. This is what keeps a smaller model from skipping or reordering steps; details are in [smaller-models.md](smaller-models.md).
+
+```mermaid
+flowchart TB
+    start(["autodev next --story S"]) --> q1{"Story read?"}
+    q1 -- no --> s1["read-story"]
+    q1 -- yes --> q2{"A repository prepared?"}
+    q2 -- no --> s2["prepare-repositories"]
+    q2 -- yes --> q3{"Plan submitted?"}
+    q3 -- no --> s3["write-plan"]
+    q3 -- yes --> q4{"Evaluated, and unchanged since?"}
+    q4 -- no --> s4["evaluate-plan<br/>actor: plan-reviewer"]
+    q4 -- yes --> q5{"Verdict ready?"}
+    q5 -- "no, fewer than 3 rounds" --> s5["revise-plan"]
+    q5 -- "no, 3 rounds" --> s5u["plan-disagreement<br/>actor: user"]
+    q5 -- yes --> q6{"For the first repository<br/>without a pull request:<br/>on the story branch?"}
+    q6 -- no --> s6u["wrong-branch<br/>actor: user"]
+    q6 -- yes --> q7{"Any change yet?"}
+    q7 -- no --> s7["implement<br/>after the user confirms the plan"]
+    q7 -- yes --> q8{"tests valid for this code?"}
+    q8 -- no --> s8["test"]
+    q8 -- yes --> q9{"automated review valid?"}
+    q9 -- no --> s9["automated-review"]
+    q9 -- yes --> q10{"independent review valid?"}
+    q10 -- no --> s10["independent-review<br/>actor: code-reviewer"]
+    q10 -- yes --> q11{"Committed?"}
+    q11 -- no --> s11["commit"]
+    q11 -- yes --> s12["open-pull-request"]
+    s12 --> q12{"Every prepared repository<br/>has a pull request?"}
+    q12 -- no --> q6
+    q12 -- yes --> q13{"Learning check run?"}
+    q13 -- no --> s13["capture-learnings"]
+    q13 -- yes --> s14["report<br/>with the approvals waiting for the user"]
+```
+
+"Valid for this code" means the gate passed for the current tree id (diagram 6). After an edit the answer becomes no again, so the next step is that gate.
+
+## 16. Plan evaluation
+
+The plan is evaluated before any code is written, by an agent that did not write it and cannot edit. Details and the evaluation prompt are in [plan-review.md](plan-review.md).
+
+```mermaid
+flowchart TB
+    write["auto-developer writes the plan<br/>seven required sections"] --> submit["autodev plan submit<br/>hash H recorded"]
+    submit --> facts["autodev plan check (looked up, not judged):<br/>do the named files and identifiers exist,<br/>who uses them that the plan does not mention,<br/>which acceptance criteria may be skipped"]
+    facts --> bundle["autodev context --task plan-review<br/>plan, criteria, project rules, approved learnings,<br/>plan facts, nine checklist areas"]
+    bundle --> review["plan-reviewer evaluates nine areas:<br/>requirements, feasibility, edge cases, blast radius,<br/>data, security, tests, operations, assumptions"]
+    review --> findings["Findings, each with a priority,<br/>the failing situation, evidence and a fix"]
+    findings --> block{"Any P0 or P1?"}
+    block -- yes --> notready["plan review --verdict not-ready"]
+    notready --> rounds{"Third round?"}
+    rounds -- no --> revise["Author revises the plan<br/>new hash, evaluation is stale"]
+    revise --> submit
+    rounds -- yes --> user["The user decides"]
+    block -- no --> complete{"All nine areas covered,<br/>none unchecked?"}
+    complete -- no --> refused["Refused: not a sign-off"]
+    complete -- yes --> ready["plan review --verdict ready @ H"]
+    ready --> confirm["User sees the plan, P2 findings<br/>and what could not be verified, and confirms"]
+    confirm --> implement["Implementation may start.<br/>repo commit and pr create check<br/>that the plan is still H"]
+    notready -. "kept for the learning check" .-> history[("Every evaluation is kept<br/>with the story")]
+    ready -. "kept" .-> history
+```
+
+| Priority | Meaning | Effect |
+|---|---|---|
+| P0 | Would break production, lose data, open a security hole, or cannot work | Not ready |
+| P1 | A criterion is not met, a case that will occur is not handled, or an assumption is false | Not ready |
+| P2 | A real weakness with a workable way around it | Ready; the user is told |
+| P3 | An improvement, not a defect | Optional |
+| P4 | Style and preference | Optional |
