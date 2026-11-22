@@ -38,6 +38,7 @@ export const Actions = Object.freeze({
   SCHEMA_CHANGE: 'db2.schemaChange',
   LEARNING_WRITE: 'learning.write',
   SCENARIO_WRITE: 'scenario.write',
+  PROJECT_ONBOARD: 'project.onboard',
   START_DEVELOPMENT: 'handoff.startDevelopment',
   PRODUCTION_CHANGE: 'production.change',
 });

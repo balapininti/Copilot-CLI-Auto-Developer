@@ -35,7 +35,7 @@ Commands are written `autodev <command>`. Run them as `node "$env:AUTODEV_HOME\s
 ## Errors
 
 - `PROJECT_AMBIGUOUS`: more than one project maps to the board. Show `details.candidates` and ask the user to pick. Never pick for them.
-- `PROJECT_NOT_FOUND`: nothing maps to it. The project needs onboarding (`autodev onboard-project`, run by a person).
+- `PROJECT_NOT_FOUND`: nothing maps to it. The project needs onboarding: by a person with `autodev onboard-project`, or with the `project-onboarder` agent in a session started without a project (`onboarding` skill).
 - `PROJECT_SCOPE_VIOLATION`: the session is bound to another project. Stop. Work on a different project needs a new session.
 - `CONFIG_INVALID`: `project.yaml` is malformed or contains a secret. Report `details.problems`; do not edit the manifest.
 

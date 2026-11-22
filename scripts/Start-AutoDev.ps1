@@ -33,8 +33,9 @@
     story, with "autodev session select"; it cannot change it afterwards.
 
 .PARAMETER Agent
-    Custom agent to start. Default: auto-developer. The other agent shipped
-    with the framework is incident-investigator.
+    Custom agent to start. Default: auto-developer. Others shipped with the
+    framework: incident-investigator, and project-onboarder (start it without
+    -Project to onboard a new project from what already exists on the machine).
 
 .PARAMETER Workspace
     Workspace root. Default: the parent of the repository folder.

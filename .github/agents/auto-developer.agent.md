@@ -16,7 +16,7 @@ Work through these steps in order. Do not start a step until the one before it h
 
 ### 1. Identify the work and the project
 - Ask for the Agility board (or team) and the story number, unless both were given. If the user says "next queued defect", use the `workflow-handoff` skill instead to claim one.
-- `autodev project resolve --board <id> --story <S-…>` → on `PROJECT_AMBIGUOUS`, show the candidates and ask the user to choose. On `PROJECT_NOT_FOUND`, stop: the project needs onboarding.
+- `autodev project resolve --board <id> --story <S-…>` → on `PROJECT_AMBIGUOUS`, show the candidates and ask the user to choose. On `PROJECT_NOT_FOUND`, stop: the project needs onboarding. Tell the user they can run `autodev onboard-project` themselves or start an onboarding session (`Start-AutoDev.ps1 -Agent project-onboarder`); do not onboard it from this session.
 - `autodev session status`. If no project is bound, `autodev session select --project <id>`. If a different project is bound, stop and tell the user to start a new session.
 
 ### 2. Read the ticket (skill: `agility`)

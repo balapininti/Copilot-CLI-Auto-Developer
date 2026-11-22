@@ -19,6 +19,55 @@ node scripts\autodev.mjs onboard-project --answers .\my-project.answers.json
 
 Press Enter to skip any question. A skipped answer is written as `null` and reported under `missing`.
 
+## Let Copilot build it from what you already have
+
+You may already have most of the answers on the machine: clones of the project's repositories, an older skill or prompt file, a runbook, a wiki export. The `project-onboarder` agent reads what you point it at, fills in the answers, drafts the guideline files, and proposes the project. Nothing is created until you approve the exact files.
+
+```powershell
+cd C:\DevWorkspace\automation
+.\scripts\Start-AutoDev.ps1 -Agent project-onboarder      # no -Project: there is no project yet
+```
+
+Tell it what to read:
+
+> Onboard the orders project. Repositories are cloned under C:\src\orders. My old skill is in C:\Users\me\.copilot\skills\orders. The team runbook is C:\docs\orders-runbook.md.
+
+What happens:
+
+1. **Scan** (`autodev onboard scan`). Read-only. For each git clone it finds the remote URL, build tool, Java and Spring Boot versions and the test commands the build tool implies. From documents it collects the hosts that URLs point at, with a guess at which system each is.
+2. **Read.** The agent reads the documents that look relevant and extracts boards, team names, schemas, services, release-branch conventions and process rules.
+3. **Facts and gaps.** It shows you a table of every value with the file it came from, and a list of what it could not find. Correct it and answer what you can. Gaps are fine; they are recorded as missing.
+4. **Proposal** (`autodev onboard propose`). It builds `project.yaml` and the guideline drafts and requests approval.
+5. **Your review**, in your own terminal:
+
+   ```powershell
+   node scripts\autodev.mjs approvals review apr-… --project orders
+   ```
+
+   You see every file in full, the URLs it wants you to set, what is still missing, and the list of sources it read.
+6. **Creation** (`autodev onboard apply`), exactly as approved.
+7. **Handover.** The agent gives you the commands to set the environment variables with the URLs it found, the names of the secrets to store, and what is still missing. You run those yourself, then start a normal session: `.\scripts\Start-AutoDev.ps1 -Project orders`.
+
+What to check when you review:
+
+- **Test commands** under `repositories[].tests`. These are programs the framework will run in your clones. They should be your build tool and nothing else.
+- **Hosts** in `bitbucket.allowedHosts` and `browser.allowedHosts`. These decide where code may be cloned from and where the browser may click.
+- **Guideline text.** It becomes what every later agent treats as your team's rules. Each drafted line should name its source; delete what you do not recognise.
+- **Boards and team names.** A wrong board maps other teams' stories to this project.
+
+Limits, by design:
+
+- **It reads only what you name.** It does not search the machine.
+- **Your existing files are treated as information, not instructions.** If an old skill says "push straight to main", that is reported to you as a conflict, not adopted.
+- **No secrets.** Credentials embedded in clone URLs are removed by the scan, `.env` files are never read, and an answer or guideline that looks like it contains a secret is refused. Tokens are stored by you, with `Set-AutoDevCredential.ps1`.
+- **It cannot set policy.** Every policy starts at its restrictive default, monitoring starts off, and thresholds start empty, whatever the answers contain. Loosening one is a person's edit to `project.yaml`.
+- **It cannot set environment variables or change an existing project.** It gives you the commands and the list of edits.
+- **New projects only.** Onboarding an id that already exists is refused.
+
+`autodev onboard scan --path <folder>` is also useful on its own: run it yourself to see what would be discovered before involving the agent.
+
+**Status:** the scanner, the answers handling and the approval gate are tested. The agent itself has not yet been run in a Copilot session, so read its first proposal closely.
+
 ## What it asks
 
 | Answer key | Meaning |
@@ -41,6 +90,9 @@ Press Enter to skip any question. A skipped answer is written as `null` and repo
 | `securityRestrictions` | Restrictions the agents must respect |
 | `requiredTests` | Stages required before a PR (default `compile, unit`) |
 | `chromiumApproved` | Whether Chromium is approved in addition to Edge |
+| `browserAllowedHosts` | Hosts the browser may open: the application under test and your identity provider |
+| `repositoryDetails` | Answers file only. Per repository: `type`, `schemas` and `tests` (commands as argument arrays). See the `onboarding` skill for the shape |
+| `environmentValues` | `onboard propose` only. The URLs for the variables named above; shown for approval and returned as commands for you to run, never written into the project |
 
 Give the **names** of environment variables and credential entries. An answer that looks like a secret or a URL with embedded credentials is refused.
 

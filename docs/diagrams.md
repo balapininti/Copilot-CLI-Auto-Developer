@@ -15,6 +15,7 @@ How the framework works, in pictures. GitHub renders these Mermaid diagrams in p
 11. [Defect to development handoff](#11-defect-to-development-handoff)
 12. [Learning](#12-learning)
 13. [End-to-end scenarios from a HAR](#13-end-to-end-scenarios-from-a-har)
+14. [Onboarding from what already exists](#14-onboarding-from-what-already-exists)
 
 ## 1. The system on one page
 
@@ -64,8 +65,8 @@ There is no server, no hosted component and no MCP. Copilot supplies the reasoni
 ```mermaid
 flowchart TB
     subgraph md["Markdown: what Copilot reads (.github)"]
-        agents["Agents<br/>auto-developer, incident-investigator,<br/>code-reviewer, test-validator"]
-        skills["16 skills<br/>one capability each, generic"]
+        agents["Agents<br/>auto-developer, incident-investigator,<br/>project-onboarder, code-reviewer, test-validator"]
+        skills["17 skills<br/>one capability each, generic"]
         hook["preToolUse hook<br/>denies tool calls that go around the gates"]
     end
 
@@ -91,7 +92,7 @@ flowchart TB
 
 | Layer | Folder | Rule of thumb |
 |---|---|---|
-| Agents | `.github/agents` | Who coordinates. Four files, no capability logic. |
+| Agents | `.github/agents` | Who coordinates. Five files, no capability logic. |
 | Skills | `.github/skills` | How to use one capability. Generic: no URL, project name or team rule appears in a skill. |
 | Hook | `.github/hooks`, `scripts/hooks` | A net under the agents: blocks direct `git push`, direct writes to `state\` and `knowledge\`, and similar. |
 | CLI | `src/cli` | One command in, one JSON envelope out. |
@@ -400,4 +401,33 @@ flowchart TB
     run -- fails --> why{"Why?"}
     why -- "the change broke the journey" --> fix["Fix the code"]
     why -- "the story changed the journey on purpose" --> propose
+```
+
+## 14. Onboarding from what already exists
+
+The `project-onboarder` agent reads material you point it at and proposes a project. It cannot create one itself. See [onboarding.md](onboarding.md#let-copilot-build-it-from-what-you-already-have).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P as Person
+    participant AG as project-onboarder agent
+    participant CLI as autodev CLI
+    participant FS as Files the person named
+
+    P->>AG: Onboard my project. Read these folders and this old skill
+    AG->>CLI: onboard scan --path ...
+    CLI->>FS: Read-only: git remotes, build files, URLs in documents
+    CLI-->>AG: Repositories, build and test commands, hosts. No credentials
+    AG->>FS: Reads the relevant documents
+    AG->>P: Facts with their sources, and what could not be found
+    P-->>AG: Corrections and answers
+    AG->>CLI: onboard propose --answers ... --guidelines ...
+    Note over CLI: Builds project.yaml with restrictive policies.<br/>Stages every file. Creates nothing
+    CLI-->>AG: Approval id, what is missing, URLs to set
+    P->>CLI: approvals review apr-... (own terminal, sees every file)
+    AG->>CLI: onboard apply --approval apr-...
+    CLI->>CLI: Writes exactly the approved files to projects/id
+    AG->>P: Commands to set the URLs, names of secrets to store, what is still missing
+    P->>P: Sets variables, stores tokens, starts a session for the project
 ```

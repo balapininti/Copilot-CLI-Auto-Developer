@@ -34,6 +34,8 @@ The short version is below; [docs/setup.md](docs/setup.md) is the full walkthrou
 
 # 2. Onboard a project (asks only for company-specific facts; skipped answers are reported, never guessed)
 node scripts\autodev.mjs onboard-project
+#    or let Copilot build it from what you already have (repository clones, an older skill, team documents);
+#    it proposes, you approve:  .\scripts\Start-AutoDev.ps1 -Agent project-onboarder
 
 # 3. Store secrets in Windows Credential Manager (typed at a hidden prompt, never on the command line)
 .\scripts\Set-AutoDevCredential.ps1 -Name AGILITY_TOKEN
@@ -62,8 +64,8 @@ Prerequisites: Windows 10/11, PowerShell 6 or later (a Copilot CLI requirement),
 ```
 C:\DevWorkspace\
   automation\                       this repository
-    .github\agents\                 auto-developer, incident-investigator, code-reviewer, test-validator
-    .github\skills\<name>\SKILL.md  16 shared skills
+    .github\agents\                 auto-developer, incident-investigator, project-onboarder, code-reviewer, test-validator
+    .github\skills\<name>\SKILL.md  17 shared skills
     .github\hooks\autodev.json      preToolUse hook
     scripts\                        autodev.mjs, Bootstrap.ps1, Start-AutoDev.ps1, …
     src\core\  src\adapters\  src\monitoring\  src\workflow\  src\cli\
@@ -89,6 +91,7 @@ Copilot CLI discovers agents and skills from `.github\agents` and `.github\skill
 | A PR only after tests, automated review and independent review pass for the exact code | Gate results are bound to a git tree id |
 | No PR, ticket, comment, schema change or start of defect work without the configured approval | Approvals bound to a SHA-256 of the exact payload, single-use, decided at a real terminal |
 | A baseline end-to-end scenario cannot be changed without approval | Only `scenario apply` writes one; an edited scenario fails its integrity check and is not run as a baseline; an update names every expectation it removes |
+| An agent cannot create a project or set its own policies | `onboard propose` stages every file for approval; `onboard apply` writes exactly what was approved; answers cannot set a policy |
 | No learning without approval of the exact text | Only `learn apply` writes knowledge; unapproved files fail an integrity check and are never loaded |
 | DB2 is read-only and scoped | SQL guard, row and time limits, column redaction; no write path |
 | Telemetry queries are scoped and bounded | Explicit indexes and entity selectors, capped windows and results |
@@ -109,7 +112,7 @@ node scripts\autodev.mjs help
 
 | Group | Commands |
 |---|---|
-| Setup | `doctor`, `discovery verify/install/uninstall`, `onboard-project`, `demo e2e`, `mock serve` |
+| Setup | `doctor`, `discovery verify/install/uninstall`, `onboard-project`, `onboard scan/propose/apply`, `demo e2e`, `mock serve` |
 | Project | `project list/show/validate/resolve/repos/schemas/guidelines`, `session status/select`, `service hosts` |
 | Access | `auth status/login`, `agility verify/boards/story/comment/status` |
 | Code | `repo status/prepare/diff/commit`, `java detect`, `db2 tables/describe/query`, `browser run` |

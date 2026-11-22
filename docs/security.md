@@ -35,7 +35,7 @@ This document says what the framework enforces, how, and where the limits are.
 
 Inside a session the workspace is fixed too: a command given a `--workspace` that differs from the session's is refused (`PROJECT_SCOPE_VIOLATION`), because another workspace would bring its own manifests, policies and approval store.
 
-Actions that are gated: creating a pull request (which includes the push), creating a defect, commenting on or changing the status of a ticket, authorizing a schema change, starting development on a queued defect, saving a learning, and adding or changing an end-to-end scenario. Policies are `approval-required`, `allowed` or `prohibited` per project; saving a learning and writing a scenario are always approval-required.
+Actions that are gated: creating a pull request (which includes the push), creating a defect, commenting on or changing the status of a ticket, authorizing a schema change, starting development on a queued defect, saving a learning, adding or changing an end-to-end scenario, and creating a project from inside a session. Policies are `approval-required`, `allowed` or `prohibited` per project; saving a learning, writing a scenario and creating a project are always approval-required.
 
 ## Learning: enforced at the file boundary
 

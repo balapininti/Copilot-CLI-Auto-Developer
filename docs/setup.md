@@ -6,7 +6,7 @@ From an empty Windows workstation to a first story, in order. Allow about an hou
 
 ## How configuration works
 
-**You never edit a skill.** The 16 skills and 4 agents are generic and identical for every team. A skill learns your URLs, boards, repositories, schemas and process from five places that you set up once per project:
+**You never edit a skill.** The 17 skills and 5 agents are generic and identical for every team. A skill learns your URLs, boards, repositories, schemas and process from five places that you set up once per project:
 
 | What the skills need to know | Where you put it | How |
 |---|---|---|
@@ -124,6 +124,18 @@ C:\DevWorkspace\projects\orders\
 ```
 
 Where it asks for a URL it wants the **name of an environment variable** (`AGILITY_BASE_URL`), not the URL. An answer that looks like a secret is refused.
+
+### Or let Copilot build it from what you already have
+
+If the project's repositories are already cloned on the machine, or you have an older skill, prompt file or team document that describes the project, Copilot can read those and fill in most of the answers:
+
+```powershell
+.\scripts\Start-AutoDev.ps1 -Agent project-onboarder
+```
+
+Then: *"Onboard the orders project. The repositories are under C:\src\orders and my old skill is at C:\Users\me\.copilot\skills\orders."*
+
+The agent shows you each fact with the file it came from and a list of what it could not find, then proposes the whole project. You review every file in your own terminal (`approvals review`) before anything is created. It also gives you the commands for Step 4, with the URLs it found. Details: [onboarding.md](onboarding.md#let-copilot-build-it-from-what-you-already-have).
 
 ## Step 4: Set the URLs
 
@@ -279,8 +291,8 @@ The launcher validates the project, checks that the agents and skills are discov
 
 First-session checks, because these have not been exercised in a signed-in session yet:
 
-1. `/agent` lists `auto-developer`, `incident-investigator`, `code-reviewer`, `test-validator`.
-2. `/skills list` shows the 16 skills.
+1. `/agent` lists `auto-developer`, `incident-investigator`, `project-onboarder`, `code-reviewer`, `test-validator`.
+2. `/skills list` shows the 17 skills.
 3. Ask the agent to run `git push`. The hook should refuse it.
 
 Then give it work:
@@ -394,6 +406,7 @@ No skill has its own configuration file. This table shows what must be in place 
 | workflow-handoff | | | `agility.defectScope`, `monitoring.incidentPolicy` |
 | learning-management | | | `learning.persistence` |
 | e2e-scenarios | | | `browser.allowedHosts` (the application under test), `repositories[]` |
+| onboarding | | | None: it creates the file. Needs a session started without a project |
 
 ## Setting up the rest of the team
 

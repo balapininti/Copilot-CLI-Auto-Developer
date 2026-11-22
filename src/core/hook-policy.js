@@ -25,6 +25,10 @@ const SHELL_RULES = [
     reason: 'Approvals are decided by a person in their own terminal, never by an agent.',
   },
   {
+    pattern: /\bonboard-project\b(?![^\n;&|]*--dry-run)/i,
+    reason: 'A project is created from inside a session only after a person approves it. Use "autodev onboard propose --answers <file.json>".',
+  },
+  {
     // Assigning, exporting or removing the variables that bind the session.
     pattern: /\bAUTODEV_(SESSION_ID|PROJECT|WORKSPACE|DRY_RUN)\s*=|(\bunset\s+|Remove-Item\s+(-Path\s+)?Env:\\?|SetEnvironmentVariable\(\s*['"])AUTODEV_(SESSION_ID|PROJECT|WORKSPACE|DRY_RUN)\b/i,
     reason: 'The session\'s project binding, workspace and dry-run mode cannot be changed from inside the session.',

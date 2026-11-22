@@ -6,23 +6,26 @@
 import { randomInt } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import readline from 'node:readline/promises';
 
-import { decideApproval, getApproval, listApprovals } from '../../core/approvals.js';
+import { Actions, decideApproval, getApproval, listApprovals } from '../../core/approvals.js';
 import { readAudit, verifyAudit } from '../../core/audit.js';
 import { AutoDevError, ErrorCodes } from '../../core/errors.js';
 import { runCommand } from '../../core/exec.js';
 import {
   describeProject, getActiveProject, getRepositories, getSchemas, listProjectIds, loadGuidelines, resolveProject, selectProject, TASK_TYPES,
 } from '../../core/project-context.js';
+import { safeId } from '../../core/state-store.js';
 import { AUTOMATION_ROOT } from '../../core/workspace.js';
 import { installUserLevel, uninstallUserLevel, verifyDiscovery } from '../../workflow/discovery.js';
-import { onboardProject, QUESTIONS } from '../../workflow/onboarding.js';
+import { applyOnboarding, onboardProject, proposeOnboarding, QUESTIONS, readGuidelineDrafts } from '../../workflow/onboarding.js';
+import { scanSources } from '../../workflow/onboarding-scan.js';
 
 export const REQUIRED_AGENTS = ['auto-developer', 'incident-investigator'];
 export const REQUIRED_SKILLS = [
   'project-context', 'agility', 'bitbucket', 'db2', 'java-spring', 'browser-playwright', 'testing', 'code-review', 'splunk',
-  'dynatrace', 'authentication', 'learning-management', 'incident-correlation', 'root-cause-analysis', 'workflow-handoff', 'e2e-scenarios',
+  'dynatrace', 'authentication', 'learning-management', 'incident-correlation', 'root-cause-analysis', 'workflow-handoff', 'e2e-scenarios', 'onboarding',
 ];
 
 /**
@@ -41,6 +44,45 @@ function requireHuman(ctx) {
       ErrorCodes.POLICY_PROHIBITED,
       'Approvals can only be decided interactively at a terminal. This command was run without one.',
     );
+  }
+}
+
+/**
+ * The project an approval belongs to. A project that is being onboarded has
+ * an approval request before it has a manifest, so that one case is resolved
+ * from the approval itself.
+ * @param {import('../main.js').CommandContext} ctx
+ * @returns {string}
+ */
+function approvalProjectId(ctx) {
+  try {
+    return ctx.project().projectId;
+  } catch (error) {
+    if (!(error instanceof AutoDevError) || error.code !== ErrorCodes.PROJECT_NOT_FOUND || !ctx.flags.project || !ctx.args[0]) throw error;
+    const id = safeId(String(ctx.flags.project), 'project id');
+    let approval = null;
+    try {
+      approval = getApproval(ctx.workspace, id, ctx.args[0]);
+    } catch {
+      // no such approval: report the original problem
+    }
+    if (approval?.action !== Actions.PROJECT_ONBOARD) throw error;
+    return id;
+  }
+}
+
+/**
+ * Read a JSON file named on the command line.
+ * @param {string} file
+ * @returns {Record<string, unknown>}
+ */
+function readAnswers(file) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('it is not a JSON object');
+    return parsed;
+  } catch (error) {
+    throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `Could not read the answers file: ${/** @type {Error} */ (error).message}`);
   }
 }
 
@@ -125,14 +167,18 @@ export const projectCommands = {
     summary: 'Create a project folder from interactive answers (or --answers <file.json>).',
     usage: 'onboard-project [--answers answers.json] [--dry-run]',
     run: async (ctx) => {
+      if (!ctx.dryRun && (ctx.env.AUTODEV_SESSION_ID || ctx.env.AUTODEV_PROJECT)) {
+        // This command writes the project straight away. From inside an agent
+        // session a new project goes through a person's approval instead.
+        throw new AutoDevError(
+          ErrorCodes.POLICY_PROHIBITED,
+          'Inside a session a project is created only after a person approves it. Use: autodev onboard propose --answers <file.json>',
+        );
+      }
       /** @type {Record<string, unknown>} */
       let answers = {};
       if (ctx.flags.answers) {
-        try {
-          answers = JSON.parse(fs.readFileSync(ctx.flags.answers, 'utf8'));
-        } catch (error) {
-          throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `Could not read the answers file: ${/** @type {Error} */ (error).message}`);
-        }
+        answers = readAnswers(ctx.flags.answers);
       } else {
         if (!process.stdin.isTTY) {
           throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'Onboarding is interactive. Run it at a terminal, or pass --answers <file.json>.');
@@ -151,6 +197,37 @@ export const projectCommands = {
       }
       return onboardProject(ctx.workspace, answers, { dryRun: ctx.dryRun, env: ctx.env });
     },
+  },
+
+  'onboard scan': {
+    summary: 'Read-only discovery for onboarding: git clones (remote, build tool, test commands) and hosts mentioned in documents under the given paths.',
+    usage: 'onboard scan --path <file-or-folder> [--path ...]',
+    run: (ctx) => scanSources(ctx.flags.path ?? []),
+  },
+  'onboard propose': {
+    summary: 'Propose a new project from an answers file (and optional guideline drafts). Creates nothing until a person approves the exact files.',
+    usage: 'onboard propose --answers <answers.json> [--guidelines <folder of drafted .md files>] [--source <what was read> ...]',
+    run: (ctx) => {
+      const active = getActiveProject(ctx.workspace, ctx.env);
+      if (active.projectId) {
+        throw new AutoDevError(
+          ErrorCodes.PROJECT_SCOPE_VIOLATION,
+          `This session is bound to project "${active.projectId}". Onboard a new project from a session started without -Project.`,
+        );
+      }
+      return proposeOnboarding(ctx.workspace, {
+        answers: readAnswers(ctx.need('answers')),
+        guidelines: ctx.flags.guidelines ? readGuidelineDrafts(path.resolve(String(ctx.flags.guidelines))) : undefined,
+        sources: Array.isArray(ctx.flags.source) ? ctx.flags.source : ctx.flags.source ? [ctx.flags.source] : [],
+        env: ctx.env,
+        dryRun: ctx.dryRun,
+      });
+    },
+  },
+  'onboard apply': {
+    summary: 'Create the project a person approved. Writes exactly the approved files.',
+    usage: 'onboard apply --approval <id> --project <new project id>',
+    run: (ctx) => applyOnboarding(ctx.workspace, { projectId: ctx.need('project'), approvalId: ctx.need('approval'), dryRun: ctx.dryRun }),
   },
 
   'project list': {
@@ -221,7 +298,7 @@ export const projectCommands = {
     usage: 'approvals show <approval-id>',
     run: (ctx) => {
       if (!ctx.args[0]) throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'Usage: autodev approvals show <approval-id>');
-      return publicView(getApproval(ctx.workspace, ctx.project().projectId, ctx.args[0]));
+      return publicView(getApproval(ctx.workspace, approvalProjectId(ctx), ctx.args[0]));
     },
   },
   'approvals review': {
@@ -230,7 +307,7 @@ export const projectCommands = {
     run: async (ctx) => {
       requireHuman(ctx);
       if (!ctx.args[0]) throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, 'Usage: autodev approvals review <approval-id> --project <id>');
-      const { projectId } = ctx.project();
+      const projectId = approvalProjectId(ctx);
       const approval = getApproval(ctx.workspace, projectId, ctx.args[0]);
       if (approval.status !== 'pending') {
         throw new AutoDevError(ErrorCodes.CONFLICT, `Approval ${approval.id} is ${approval.status}, not pending.`);

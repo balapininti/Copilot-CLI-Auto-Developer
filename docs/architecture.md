@@ -34,10 +34,11 @@ A second entry point does not involve Copilot at all: Windows Task Scheduler run
 |---|---|---|
 | `auto-developer` | The only coordinator of development and pull requests: ticket to PR | read, search, edit, execute, agent, todo |
 | `incident-investigator` | Monitoring and root-cause analysis; prepares defects; never changes code | read, search, execute, agent, todo |
+| `project-onboarder` | Builds a new project from existing clones, skills and documents; proposes it for approval; never develops | read, search, edit, execute |
 | `code-reviewer` | Independent review; records the verdict that gates the PR | read, search, execute |
 | `test-validator` | Runs and interprets test stages | read, search, execute |
 
-Capabilities live in skills, not agents, so nothing is duplicated: `project-context`, `agility`, `bitbucket`, `db2`, `java-spring`, `browser-playwright`, `testing`, `code-review`, `splunk`, `dynatrace`, `authentication`, `learning-management`, `incident-correlation`, `root-cause-analysis`, `workflow-handoff`, `e2e-scenarios`.
+Capabilities live in skills, not agents, so nothing is duplicated: `project-context`, `agility`, `bitbucket`, `db2`, `java-spring`, `browser-playwright`, `testing`, `code-review`, `splunk`, `dynatrace`, `authentication`, `learning-management`, `incident-correlation`, `root-cause-analysis`, `workflow-handoff`, `e2e-scenarios`, `onboarding`.
 
 ## Workspace
 
@@ -51,7 +52,7 @@ C:\DevWorkspace\
     scenarios\<name>.json       baseline end-to-end journeys, written only after approval
     repos\<repo-name>\         clones the agent works in
   state\                       written only by the autodev CLI
-    approvals\ audit\ runs\ evidence\ incidents\ monitor\ handoff\ learning\ scenarios\ sessions\
+    approvals\ audit\ runs\ evidence\ incidents\ monitor\ handoff\ learning\ scenarios\ onboarding\ sessions\
 ```
 
 Skills are generic. Everything specific to a project is under `projects/<id>/` and is loaded only for that project.
