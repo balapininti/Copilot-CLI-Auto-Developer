@@ -103,6 +103,7 @@ policies:
   updateTicket: approval-required
   schemaChanges: approval-required
   dbWrites: prohibited
+  planReview: required                  # no commit or PR until the story's plan is independently evaluated as ready; "advisory" records without blocking
   productionChanges: prohibited
 
 monitoring:

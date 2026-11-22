@@ -93,6 +93,8 @@ export function fullManifest(overrides = {}) {
       dynatraceTokenSecret: 'TEST_DYNATRACE_TOKEN',
     },
     guidelines: ['guidelines/architecture.md'],
+    // Suites that are not about the plan gate run with it advisory; tests/workflow/plan.test.js covers the default.
+    policies: { planReview: 'advisory' },
     monitoring: {
       enabled: true,
       environment: 'nonprod',

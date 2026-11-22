@@ -199,6 +199,10 @@
         "updateTicket": { "$ref": "#/definitions/policy" },
         "schemaChanges": { "enum": ["approval-required", "prohibited"] },
         "dbWrites": { "enum": ["approval-required", "prohibited"] },
+        "planReview": {
+          "description": "required: no commit or pull request until the story's plan has been independently evaluated as ready. advisory: the evaluation is recorded but does not block.",
+          "enum": ["required", "advisory"]
+        },
         "productionChanges": { "const": "prohibited" }
       }
     },

@@ -6,7 +6,7 @@ From an empty Windows workstation to a first story, in order. Allow about an hou
 
 ## How configuration works
 
-**You never edit a skill.** The 17 skills and 5 agents are generic and identical for every team. A skill learns your URLs, boards, repositories, schemas and process from five places that you set up once per project:
+**You never edit a skill.** The 18 skills and 6 agents are generic and identical for every team. A skill learns your URLs, boards, repositories, schemas and process from five places that you set up once per project:
 
 | What the skills need to know | Where you put it | How |
 |---|---|---|
@@ -291,15 +291,15 @@ The launcher validates the project, checks that the agents and skills are discov
 
 First-session checks, because these have not been exercised in a signed-in session yet:
 
-1. `/agent` lists `auto-developer`, `incident-investigator`, `project-onboarder`, `code-reviewer`, `test-validator`.
-2. `/skills list` shows the 17 skills.
+1. `/agent` lists `auto-developer`, `incident-investigator`, `project-onboarder`, `plan-reviewer`, `code-reviewer`, `test-validator`.
+2. `/skills list` shows the 18 skills.
 3. Ask the agent to run `git push`. The hook should refuse it.
 
 Then give it work:
 
 > Implement story S-01234 from board 501.
 
-The agent reads the story, tells you what is missing, proposes a plan and waits for your confirmation. When it reaches something that needs approval it gives you an id. Decide it in a **separate terminal**, where you see the exact content:
+The agent reads the story, tells you what is missing, and writes a plan. A separate `plan-reviewer` agent evaluates that plan against the ticket and the code and returns findings ranked P0 (blocking) to P4 (optional); the author revises until it is ready. You then see the plan with any remaining findings and confirm it before code is written ([plan-review.md](plan-review.md)). When it reaches something that needs approval it gives you an id. Decide it in a **separate terminal**, where you see the exact content:
 
 ```powershell
 node scripts\autodev.mjs approvals review apr-1a2b3c4d5e6f --project orders
@@ -406,6 +406,7 @@ No skill has its own configuration file. This table shows what must be in place 
 | workflow-handoff | | | `agility.defectScope`, `monitoring.incidentPolicy` |
 | learning-management | | | `learning.persistence` |
 | e2e-scenarios | | | `browser.allowedHosts` (the application under test), `repositories[]` |
+| plan-review | | | `policies.planReview` (`required` by default) |
 | onboarding | | | None: it creates the file. Needs a session started without a project |
 
 ## Setting up the rest of the team

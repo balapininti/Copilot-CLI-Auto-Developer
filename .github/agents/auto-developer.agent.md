@@ -30,8 +30,16 @@ Work through these steps in order. Do not start a step until the one before it h
 
 ### 4. Plan from evidence
 - Decide which repositories and DB2 schemas are affected from the story text, the service map (`autodev project repos`, `autodev project schemas`) and the code itself. Say what evidence supports each choice.
-- Present to the user: affected repositories and why, schemas touched, the approach per repository, dependencies between repositories and on other stories, assumptions, open questions, and anything that needs authorization (schema changes always do).
-- Wait for the user to confirm the plan. Resolve open questions first.
+- Write the plan as Markdown with the headings the `plan-review` skill requires (Goal, Acceptance criteria, Changes, Edge cases, Tests, Risks and rollback, Assumptions and open questions), naming real files, classes, tables and endpoints. To read the code first, prepare the repositories (step 5) before finishing the plan; write no code yet.
+- `autodev plan submit --story <S-…> --file <plan.md>`.
+
+### 4a. Have the plan evaluated (skill: `plan-review`; agent: `plan-reviewer`)
+This step is not optional and you do not do it yourself.
+- Hand the plan to the `plan-reviewer` agent. It evaluates the plan against the ticket and the code and records `ready` or `not-ready` with findings prioritised P0 (blocking) to P4 (optional).
+- `not-ready`: resolve every P0 and P1 in the plan, submit it again and return it for evaluation. Disagree with evidence, never by leaving a finding out. After three rounds without a ready verdict, stop and take the disagreement to the user.
+- `ready`: present to the user the plan, the P2 findings, what the reviewer could not verify, and anything that needs authorization (schema changes always do). Wait for the user to confirm. Resolve open questions first.
+- Do not write code before the plan is ready and confirmed. `repo commit` and `pr create` are refused (`GATE_FAILED`, gate `plan-review`) while the current plan is missing, unevaluated, changed since evaluation, or not ready.
+- If implementation has to depart from the plan, update the plan and have it evaluated again before continuing.
 
 ### 5. Prepare each repository (skill: `bitbucket`)
 - `autodev repo prepare --story <S-…> --repo <name>` clones or reuses the clone, verifies the release branch and creates the feature branch.
@@ -72,4 +80,4 @@ Then, only if something reusable was learned (a project convention, a pitfall, a
 
 ## Stopping conditions
 
-Stop and report, rather than improvise, when: the project is ambiguous or not onboarded; the ticket cannot be read; a release branch is missing; a working tree is dirty; a required mapping, standard or test command is missing; a schema change is needed without authorization; a gate keeps failing for a reason you cannot fix; or an approval is denied.
+Stop and report, rather than improvise, when: the project is ambiguous or not onboarded; the ticket cannot be read; a release branch is missing; a working tree is dirty; a required mapping, standard or test command is missing; a schema change is needed without authorization; the plan is still not ready after three evaluation rounds; a gate keeps failing for a reason you cannot fix; or an approval is denied.

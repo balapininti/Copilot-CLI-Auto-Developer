@@ -65,8 +65,8 @@ There is no server, no hosted component and no MCP. Copilot supplies the reasoni
 ```mermaid
 flowchart TB
     subgraph md["Markdown: what Copilot reads (.github)"]
-        agents["Agents<br/>auto-developer, incident-investigator,<br/>project-onboarder, code-reviewer, test-validator"]
-        skills["17 skills<br/>one capability each, generic"]
+        agents["Agents<br/>auto-developer, incident-investigator,<br/>project-onboarder, plan-reviewer,<br/>code-reviewer, test-validator"]
+        skills["18 skills<br/>one capability each, generic"]
         hook["preToolUse hook<br/>denies tool calls that go around the gates"]
     end
 
@@ -92,7 +92,7 @@ flowchart TB
 
 | Layer | Folder | Rule of thumb |
 |---|---|---|
-| Agents | `.github/agents` | Who coordinates. Five files, no capability logic. |
+| Agents | `.github/agents` | Who coordinates. Six files, no capability logic. |
 | Skills | `.github/skills` | How to use one capability. Generic: no URL, project name or team rule appears in a skill. |
 | Hook | `.github/hooks`, `scripts/hooks` | A net under the agents: blocks direct `git push`, direct writes to `state\` and `knowledge\`, and similar. |
 | CLI | `src/cli` | One command in, one JSON envelope out. |
@@ -165,6 +165,7 @@ sequenceDiagram
     participant CLI as autodev CLI
     participant AG as Agility
     participant BB as Bitbucket
+    participant PR as plan-reviewer agent
     participant RV as code-reviewer agent
 
     Dev->>AD: Implement story S-01234 from board 501
@@ -174,11 +175,17 @@ sequenceDiagram
     CLI->>AG: read story
     AG-->>CLI: title, acceptance criteria, release branch, gaps
     AD->>CLI: project guidelines --task plan
-    AD->>Dev: Plan, plus a question for every gap
-    Dev-->>AD: Confirms the plan
     AD->>CLI: repo prepare
     CLI->>BB: clone or reuse, verify release branch
     Note over CLI: Creates feature/S-01234-slug.<br/>No release branch on the ticket is a blocker,<br/>not a fallback to main
+    AD->>CLI: plan submit (criteria, changes, edge cases, tests, risks)
+    AD->>PR: Evaluate this plan
+    PR->>CLI: plan show, agility story, reads the code
+    PR->>CLI: plan review, verdict and findings P0 to P4
+    Note over CLI: Bound to the hash of the plan text.<br/>Ready is refused while a P0 or P1 stands
+    PR-->>AD: Not ready: revise and resubmit. Ready: continue
+    AD->>Dev: Plan, P2 findings, and a question for every gap
+    Dev-->>AD: Confirms the plan
     AD->>AD: Edit code inside projects/id/repos only
     AD->>CLI: test run
     Note over CLI: Gate "tests" recorded for tree T
@@ -188,7 +195,7 @@ sequenceDiagram
     RV->>CLI: repo diff, then review record
     Note over CLI: Gate "independent-review" recorded for tree T
     AD->>CLI: repo commit
-    Note over CLI: Refused unless all three gates match<br/>the working tree
+    Note over CLI: Refused unless the plan is ready and<br/>all three gates match the working tree
     AD->>CLI: pr create
     CLI-->>AD: APPROVAL_REQUIRED, approval id
     AD->>Dev: Please review approval apr-...

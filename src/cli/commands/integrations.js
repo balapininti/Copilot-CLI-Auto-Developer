@@ -23,6 +23,7 @@ import { redactString } from '../../core/redact.js';
 import { getSecret } from '../../core/secrets.js';
 import { atomicWriteJson, resolveInside, safeId } from '../../core/state-store.js';
 import { stateDirFor } from '../../core/workspace.js';
+import { checkPlan, planReviewRequired, reviewPlan, showPlan, submitPlan } from '../../workflow/plan.js';
 import { createPullRequest } from '../../workflow/pull-request.js';
 import { addHistory, checkGates, loadRun, recordGate, repoState, updateRun } from '../../workflow/run-store.js';
 
@@ -306,8 +307,9 @@ export const integrationCommands = {
         throw new AutoDevError(ErrorCodes.GATE_FAILED, `"${repo.name}" is on "${status.currentBranch}", not the story branch "${state.featureBranch}".`);
       }
       const gates = checkGates(run, repo.name, await git.worktreeTreeId(repoPath));
-      if (!gates.ok) {
-        throw new AutoDevError(ErrorCodes.GATE_FAILED, 'Commit refused: required checks have not passed for the current code.', { details: { blockers: gates.blockers } });
+      const blockers = [...(planReviewRequired(manifest) ? checkPlan(run).blockers : []), ...gates.blockers];
+      if (blockers.length > 0) {
+        throw new AutoDevError(ErrorCodes.GATE_FAILED, 'Commit refused: required checks have not passed for the current code.', { details: { blockers } });
       }
       const result = await git.commitAll({
         repoPath, name: repo.name, message: ctx.need('message'), storyId, protectedBranches: manifest.branching.protected, dryRun: ctx.dryRun,
@@ -379,6 +381,43 @@ export const integrationCommands = {
       });
       await appendAudit(ctx.workspace, projectId, { action: 'gate.tests', outcome: result.passed ? 'success' : 'failure', details: { storyId, repository: repo.name, treeId, blockers: result.blockers } });
       return { ...result, treeId, evidenceFile };
+    },
+  },
+
+  'plan submit': {
+    summary: 'Record the implementation plan for a story. Replaces any earlier plan and makes its evaluation stale.',
+    usage: 'plan submit --story <S-01234> --file <plan.md>',
+    run: (ctx) => {
+      const { projectId } = ctx.project();
+      let text;
+      try {
+        text = fs.readFileSync(path.resolve(ctx.need('file')), 'utf8');
+      } catch (error) {
+        throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `Could not read the plan file: ${/** @type {Error} */ (error).message.split('\n')[0]}`);
+      }
+      return submitPlan(ctx.workspace, { projectId, storyId: storyOf(ctx), text, dryRun: ctx.dryRun });
+    },
+  },
+  'plan show': {
+    summary: 'Show the current plan for a story, its evaluation and whether implementation may proceed.',
+    usage: 'plan show --story <S-01234>',
+    run: (ctx) => showPlan(ctx.workspace, ctx.project().projectId, storyOf(ctx)),
+  },
+  'plan review': {
+    summary: 'Record the independent evaluation of the current plan: a verdict and findings prioritised P0 to P4.',
+    usage: 'plan review --story <S-01234> --plan-hash <hash from plan show> --verdict ready|not-ready --reviewer <who> --findings <findings.json> --checked "what was verified" [--not-verified "..."]',
+    run: (ctx) => {
+      const { projectId } = ctx.project();
+      let findings;
+      try {
+        findings = JSON.parse(fs.readFileSync(path.resolve(ctx.need('findings')), 'utf8'));
+      } catch (error) {
+        throw new AutoDevError(ErrorCodes.INVALID_ARGUMENT, `Could not read the findings file as JSON: ${/** @type {Error} */ (error).message.split('\n')[0]}`);
+      }
+      return reviewPlan(ctx.workspace, {
+        projectId, storyId: storyOf(ctx), planHash: ctx.need('plan-hash'), verdict: ctx.need('verdict'), reviewer: ctx.need('reviewer'), findings,
+        checked: ctx.flags.checked ?? null, notVerified: ctx.flags['not-verified'] ?? null,
+      });
     },
   },
 
@@ -470,7 +509,9 @@ export const integrationCommands = {
         if (!repoPath || !fs.existsSync(repoPath)) continue;
         readiness[name] = checkGates(run, name, await git.worktreeTreeId(repoPath));
       }
-      return { ...run, readiness };
+      // The plan text is long; `plan show` prints it.
+      const plan = run.plan ? { version: run.plan.version, planHash: run.plan.hash, review: run.plan.review, readiness: checkPlan(run) } : null;
+      return { ...run, plan, planReviewRequired: planReviewRequired(manifest), readiness };
     },
   },
 

@@ -225,7 +225,7 @@ describe('pull-request: no API token', () => {
   /** @type {Awaited<ReturnType<typeof setup>>} */
   let ctx;
   before(async () => {
-    ctx = await setup({ policies: { createPR: 'allowed' } });
+    ctx = await setup({ policies: { createPR: 'allowed', planReview: 'advisory' } });
     fs.writeFileSync(path.join(ctx.repoPath, 'src', 'app.js'), 'export const a = 3;\n');
     await ctx.passGates();
     await ctx.commit();

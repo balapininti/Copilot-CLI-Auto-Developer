@@ -20,6 +20,7 @@ import { AutoDevError, ErrorCodes } from '../core/errors.js';
 import { envValue } from '../core/manifest.js';
 import { redactString } from '../core/redact.js';
 import { resolveInside } from '../core/state-store.js';
+import { checkPlan, planReviewRequired } from './plan.js';
 import { addHistory, checkGates, loadRun, repoState, updateRun } from './run-store.js';
 
 /**
@@ -97,7 +98,9 @@ export async function createPullRequest(workspace, input) {
   }
 
   const treeId = await git.headTreeId(repoPath);
-  const gates = checkGates(run, repoName, treeId);
+  const codeGates = checkGates(run, repoName, treeId);
+  const planBlockers = planReviewRequired(manifest) ? checkPlan(run).blockers : [];
+  const gates = { ok: codeGates.ok && planBlockers.length === 0, blockers: [...planBlockers, ...codeGates.blockers] };
   if (!gates.ok) {
     await appendAudit(workspace, projectId, {
       action: 'bitbucket.pr.blocked',

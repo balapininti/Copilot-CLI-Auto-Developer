@@ -2,7 +2,7 @@
 
 A Windows-first, locally executed, MCP-free automation framework for [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/about-copilot-cli). It gives Copilot two governed workflows:
 
-- **Ticket to pull request.** An `auto-developer` agent takes a Digital.ai Agility story through project context, the right Bitbucket repositories and release branch, a minimal Java/Spring Boot or UI change, tests, independent review, and an approved pull request.
+- **Ticket to pull request.** An `auto-developer` agent takes a Digital.ai Agility story through project context, the right Bitbucket repositories and release branch, a written plan that is independently evaluated before any code, a minimal Java/Spring Boot or UI change, tests, independent review, and an approved pull request.
 - **Monitoring to defect.** A scheduled worker reads scoped Splunk and Dynatrace telemetry, correlates and deduplicates it into incidents, and proposes Agility defects; an `incident-investigator` agent does the root-cause analysis; approved defects are handed to the auto-developer through a durable queue.
 
 Copilot supplies the reasoning. The framework supplies the rules, and enforces them in code rather than in prompts: one project per session, approvals bound to the exact content, test and review results bound to the exact code, nothing remembered without approval, nothing merged or deployed.
@@ -64,8 +64,8 @@ Prerequisites: Windows 10/11, PowerShell 6 or later (a Copilot CLI requirement),
 ```
 C:\DevWorkspace\
   automation\                       this repository
-    .github\agents\                 auto-developer, incident-investigator, project-onboarder, code-reviewer, test-validator
-    .github\skills\<name>\SKILL.md  17 shared skills
+    .github\agents\                 auto-developer, incident-investigator, project-onboarder, plan-reviewer, code-reviewer, test-validator
+    .github\skills\<name>\SKILL.md  18 shared skills
     .github\hooks\autodev.json      preToolUse hook
     scripts\                        autodev.mjs, Bootstrap.ps1, Start-AutoDev.ps1, …
     src\core\  src\adapters\  src\monitoring\  src\workflow\  src\cli\
@@ -88,6 +88,7 @@ Copilot CLI discovers agents and skills from `.github\agents` and `.github\skill
 | One explicitly selected project per session; no cross-project data | Session binding checked by every command; state stored per project |
 | Repositories cloned only from approved URLs; dirty clones preserved | Host allowlist; no reset, clean or force exists in the code |
 | The story's release branch is the base; a missing one is a blocker | Verified on the remote; no fallback to the default branch |
+| No commit or PR until the story's plan has been independently evaluated as ready | The verdict is bound to the hash of the plan; a P0 or P1 finding cannot be signed off; the author cannot record its own evaluation (`policies.planReview`) |
 | A PR only after tests, automated review and independent review pass for the exact code | Gate results are bound to a git tree id |
 | No PR, ticket, comment, schema change or start of defect work without the configured approval | Approvals bound to a SHA-256 of the exact payload, single-use, decided at a real terminal |
 | A baseline end-to-end scenario cannot be changed without approval | Only `scenario apply` writes one; an edited scenario fails its integrity check and is not run as a baseline; an update names every expectation it removes |
@@ -116,7 +117,7 @@ node scripts\autodev.mjs help
 | Project | `project list/show/validate/resolve/repos/schemas/guidelines`, `session status/select`, `service hosts` |
 | Access | `auth status/login`, `agility verify/boards/story/comment/status` |
 | Code | `repo status/prepare/diff/commit`, `java detect`, `db2 tables/describe/query`, `browser run` |
-| Quality | `test run`, `review run/record`, `run show`, `pr create` |
+| Quality | `plan submit/show/review`, `test run`, `review run/record`, `run show`, `pr create` |
 | End-to-end scenarios | `scenario import/run/propose/apply/list/show/affected` |
 | Monitoring | `splunk search`, `dynatrace problems/metrics`, `monitor run/status/verify-resolution`, `incident list/show/classify/link-pr/close`, `handoff list/authorize/next/complete` |
 | Governance | `approvals list/show/review`, `learn propose/apply/list/verify`, `audit show/verify` |
@@ -131,6 +132,7 @@ node scripts\autodev.mjs help
 | [docs/security.md](docs/security.md) | What is enforced and where, approvals, the hook, threat model and limits |
 | [docs/unsupported.md](docs/unsupported.md) | Verification status of every integration; features deliberately not supported |
 | [docs/onboarding.md](docs/onboarding.md) | Onboarding questions, the manifest, what to do afterwards |
+| [docs/plan-review.md](docs/plan-review.md) | The plan every change starts from, the evaluation prompt, the P0 to P4 scale and how the gate is enforced |
 | [docs/e2e-scenarios.md](docs/e2e-scenarios.md) | Building baseline end-to-end scenarios from a recorded HAR, running them, and keeping them current as the code changes |
 | [docs/monitoring.md](docs/monitoring.md) | The monitoring worker, scheduling, incident lifecycle, handoff |
 | [docs/corporate-network.md](docs/corporate-network.md) | VPN, proxies, certificate authorities, SSO, allowlists, troubleshooting |

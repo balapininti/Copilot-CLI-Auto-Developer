@@ -21,6 +21,7 @@ This document says what the framework enforces, how, and where the limits are.
 | A ticket read or written in a session must belong to one of the project's teams (when `agility.teamNames` is set) | `cli/commands/integrations.js` (`assertStoryInProject`) |
 | A change too large to read in full cannot pass the automated review | `adapters/review/checks.js` (`diff-not-fully-reviewed`) |
 | Secrets never in manifests, logs, results, tickets or evidence | `core/manifest.js` (refuses), `core/redact.js` (masks), `adapters/review/checks.js` (blocks commits) |
+| No commit or pull request without an independently evaluated plan | `workflow/plan.js` |
 | No learning without approval of the exact text | `workflow/learning.js`, `core/knowledge-integrity.js` |
 | No baseline end-to-end scenario added or changed without approval; nothing sensitive kept from a HAR | `workflow/scenarios.js` |
 | Tamper-evident audit trail | `core/audit.js` (hash chain; `autodev audit verify`) |
@@ -66,6 +67,7 @@ The agent runs as you, on your machine. Any control that lives on the same machi
 
 - An agent that was determined to bypass the approval store could, in principle, write an approval record directly with a shell command the hook does not recognise. The hook, the terminal check and the session check make that hard and visible (the audit log would not contain a matching human decision), not impossible.
 - Pattern-based checks (the SQL guard, the review rules, the hook rules, redaction) are conservative filters. They are not parsers and they are not complete.
+- **The plan evaluation is recorded by whoever runs `plan review`.** The same limit as the code review below applies: the command refuses the name `auto-developer`, refuses a ready verdict with a P0 or P1 finding and requires a statement of what was checked, but it cannot prove who evaluated the plan or how carefully. The user sees the plan and its findings before confirming it; that confirmation is the real control.
 - **The independent review is recorded by whoever runs `review record`.** The command refuses the name `auto-developer` and refuses a pass while automated blockers remain, but it cannot prove who the reviewer was. An agent could record a review under another name. Treat the recorded review as one input: the person approving the pull request sees the reviewer's name and notes in the PR content they approve, and Bitbucket's own required reviewers remain the real control.
 
 **Therefore the controls that actually bound the damage are outside the framework, and you should set them:**

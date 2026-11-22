@@ -76,6 +76,7 @@ export function applyDefaults(manifest) {
     updateTicket: 'approval-required',
     schemaChanges: 'approval-required',
     dbWrites: 'prohibited',
+    planReview: 'required',
     ...m.policies,
     productionChanges: 'prohibited',
   };

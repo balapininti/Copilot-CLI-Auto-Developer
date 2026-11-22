@@ -226,6 +226,7 @@ export function buildManifest(answers) {
       updateTicket: 'approval-required',
       schemaChanges: 'approval-required',
       dbWrites: 'prohibited',
+      planReview: 'required',
       productionChanges: 'prohibited',
     },
     monitoring: {

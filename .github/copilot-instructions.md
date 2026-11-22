@@ -30,7 +30,8 @@ Branch on `error.code`, never on the wording of a message. Add `--dry-run` to an
 7. **No TLS shortcuts.** Never disable certificate validation in any tool.
 8. **No direct calls.** Do not use `curl`, `Invoke-WebRequest`, a native `db2` client or `git push` to reach project systems. Use the `autodev` commands so scoping, redaction, limits and approvals apply.
 9. **Never merge, deploy, or touch production.**
-10. **No silent learning.** Nothing is saved to a project's knowledge unless the user approves the exact text through `autodev learn propose`.
+10. **No code before an evaluated plan.** A change starts with a written plan that someone other than its author has evaluated as ready (`plan-review` skill). The author never records that evaluation, and a plan that changes is evaluated again.
+11. **No silent learning.** Nothing is saved to a project's knowledge unless the user approves the exact text through `autodev learn propose`.
 
 ## When something blocks you
 

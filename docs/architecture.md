@@ -35,10 +35,11 @@ A second entry point does not involve Copilot at all: Windows Task Scheduler run
 | `auto-developer` | The only coordinator of development and pull requests: ticket to PR | read, search, edit, execute, agent, todo |
 | `incident-investigator` | Monitoring and root-cause analysis; prepares defects; never changes code | read, search, execute, agent, todo |
 | `project-onboarder` | Builds a new project from existing clones, skills and documents; proposes it for approval; never develops | read, search, edit, execute |
+| `plan-reviewer` | Independent evaluation of the plan before any code; records the verdict that gates commits and PRs | read, search, execute |
 | `code-reviewer` | Independent review; records the verdict that gates the PR | read, search, execute |
 | `test-validator` | Runs and interprets test stages | read, search, execute |
 
-Capabilities live in skills, not agents, so nothing is duplicated: `project-context`, `agility`, `bitbucket`, `db2`, `java-spring`, `browser-playwright`, `testing`, `code-review`, `splunk`, `dynatrace`, `authentication`, `learning-management`, `incident-correlation`, `root-cause-analysis`, `workflow-handoff`, `e2e-scenarios`, `onboarding`.
+Capabilities live in skills, not agents, so nothing is duplicated: `project-context`, `agility`, `bitbucket`, `db2`, `java-spring`, `browser-playwright`, `testing`, `code-review`, `splunk`, `dynatrace`, `authentication`, `learning-management`, `incident-correlation`, `root-cause-analysis`, `workflow-handoff`, `e2e-scenarios`, `onboarding`, `plan-review`.
 
 ## Workspace
 
@@ -74,6 +75,8 @@ Copilot CLI finds custom agents in `.github/agents` of the folder it is started 
 
 **Approvals are bound to content.** An approval records the SHA-256 of the exact payload. Executing the action re-hashes what is about to be sent and consumes the approval. Changed content, a reused approval and an expired one are all refused.
 
+**The plan is evaluated before the code exists.** A story's plan is recorded and evaluated by an agent that did not write it. The verdict is bound to the hash of the plan text, so a revised plan needs a new evaluation, and a plan with a blocking finding cannot be signed off. See [plan-review.md](plan-review.md).
+
 **Gates are bound to code.** Test and review results are recorded against a git tree id, a fingerprint of the entire working tree. A pull request can be created only when the committed tree has that id. "Tests passed" can never refer to an earlier version of the change.
 
 **Write-ahead for external writes.** Before a ticket is created, the intent is saved. If the process dies mid-write, the next pass looks the ticket up by its idempotency marker before doing anything else.
@@ -99,13 +102,16 @@ Exit codes: `0` success, `1` unexpected, `2` usage or configuration, `3` waiting
 
 ```
 project resolve -> session select -> agility story -> project guidelines
-   -> (plan confirmed by the user)
    -> repo prepare        clone/reuse, verify release branch, create feature branch
+   -> plan submit         the written plan: criteria, changes, edge cases, tests, risks
+   -> plan-reviewer       evaluates it against the ticket and the code, findings P0 to P4;
+                          records "ready" for that exact plan text, or sends it back
+   -> (plan confirmed by the user)
    -> edit code           the agent, inside projects/<id>/repos only
    -> test run            records gate "tests"              (tree id)
    -> review run          records gate "automated-review"   (tree id)
    -> code-reviewer       records gate "independent-review" (tree id)
-   -> repo commit         refused unless all three gates match the working tree
+   -> repo commit         refused unless the plan is ready and all three gates match the working tree
    -> pr create           gates checked against the commit, then the createPR policy,
                           then push + open PR. Never merged.
 ```

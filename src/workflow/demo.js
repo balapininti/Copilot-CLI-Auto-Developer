@@ -39,6 +39,7 @@ import { getIncident, listIncidents, readCheckpoint, saveIncident } from '../mon
 import { createLiveSources } from '../monitoring/sources.js';
 import { runOnce } from '../monitoring/worker.js';
 import { applyLearning, proposeLearning, verifyKnowledge } from './learning.js';
+import { reviewPlan, submitPlan } from './plan.js';
 import { createPullRequest } from './pull-request.js';
 import { addHistory, checkGates, loadRun, recordGate, repoState, updateRun } from './run-store.js';
 
@@ -117,6 +118,31 @@ const PRICING_V2 = `export function price(order) {
   return gross * (1 - rate);
 }
 `;
+const DEMO_PLAN = `# Plan for ${STORY}: loyalty discount
+
+## Goal
+Orders placed by loyalty members get the member discount, as the story asks.
+
+## Acceptance criteria
+1. A loyalty member's order total is reduced by the member discount: change price() in src/pricing.js.
+2. Other orders are unchanged: covered by the existing test, which must keep passing.
+
+## Changes
+service-api: src/pricing.js (apply the discount when the order is a loyalty order), test/pricing.test.js (new case).
+
+## Edge cases
+An order with no loyalty flag is treated as not a member. An empty order still totals zero.
+
+## Tests
+A new unit test fails without the change and passes with it. The existing unit tests are run unchanged.
+
+## Risks and rollback
+The change is confined to one pure function. Rolling back is reverting the commit; no data is touched.
+
+## Assumptions and open questions
+The discount rate is the one stated in the story. No open questions.
+`;
+
 const PRICING_TEST_V2 = `${PRICING_TEST_V1}
 test('applies the loyalty discount for members', () => {
   assert.equal(price({ quantity: 2, unitPrice: 5, loyaltyMember: true, discountRate: 0.1 }), 9);
@@ -263,6 +289,27 @@ export async function runDemo(options = {}) {
       state.featureBranch = branch.branch;
       addHistory(run, 'branch-created', { repo: repo.name, branch: branch.branch });
     });
+
+    // ------------------------------------------------------------------- plan
+    area = 'plan';
+    const plan = /** @type {any} */ (await submitPlan(workspace, { projectId: ORDERS, storyId: STORY, text: DEMO_PLAN }));
+    check('a plan is recorded but is not ready until someone else evaluates it', plan.readiness.ok === false && plan.review === null);
+    await expectError('the author cannot sign off its own plan', 'POLICY_PROHIBITED', () =>
+      reviewPlan(workspace, { projectId: ORDERS, storyId: STORY, planHash: plan.planHash, verdict: 'ready', reviewer: 'auto-developer', findings: [], checked: 'Compared the plan with the story and with pricing.js.' }),
+    );
+    await expectError('a plan with a P1 finding cannot be recorded as ready', 'GATE_FAILED', () =>
+      reviewPlan(workspace, {
+        projectId: ORDERS, storyId: STORY, planHash: plan.planHash, verdict: 'ready', reviewer: 'demo-plan-reviewer',
+        findings: [{ priority: 'P1', title: 'Orders without a customer are not handled', detail: 'price() reads order.customer.loyalty and throws when customer is missing.', evidence: 'src/pricing.js', recommendation: 'Treat a missing customer as not a loyalty member and add a test for it.' }],
+        checked: 'Compared the plan with the story and with pricing.js.',
+      }),
+    );
+    const planReview = await reviewPlan(workspace, {
+      projectId: ORDERS, storyId: STORY, planHash: plan.planHash, verdict: 'ready', reviewer: 'demo-plan-reviewer',
+      findings: [{ priority: 'P3', title: 'Discount rate is a literal', detail: 'The 10 percent rate is written in the function; a constant would be easier to change.' }],
+      checked: 'Each acceptance criterion maps to a change and a test; pricing.js has no other callers in this repository.',
+    });
+    check('an independent evaluation with no P0 or P1 findings makes the plan ready', planReview.readiness.ok && planReview.review?.counts.P3 === 1);
 
     // Implement the change (in a real session the agent edits these files).
     fs.writeFileSync(path.join(repoPath, 'src', 'pricing.js'), PRICING_V2);

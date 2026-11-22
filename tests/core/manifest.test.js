@@ -163,7 +163,7 @@ describe('parseManifest: accepted manifests', () => {
     const { manifest } = parseManifest('id: p\n');
     assert.deepEqual(manifest.policies, {
       createPR: 'approval-required', createDefect: 'approval-required', updateTicket: 'approval-required',
-      schemaChanges: 'approval-required', dbWrites: 'prohibited', productionChanges: 'prohibited',
+      schemaChanges: 'approval-required', dbWrites: 'prohibited', planReview: 'required', productionChanges: 'prohibited',
     });
     assert.equal(manifest.database.writeAccess, false);
     assert.equal(manifest.monitoring.enabled, false);

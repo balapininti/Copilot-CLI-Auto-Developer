@@ -25,7 +25,7 @@ import { scanSources } from '../../workflow/onboarding-scan.js';
 export const REQUIRED_AGENTS = ['auto-developer', 'incident-investigator'];
 export const REQUIRED_SKILLS = [
   'project-context', 'agility', 'bitbucket', 'db2', 'java-spring', 'browser-playwright', 'testing', 'code-review', 'splunk',
-  'dynatrace', 'authentication', 'learning-management', 'incident-correlation', 'root-cause-analysis', 'workflow-handoff', 'e2e-scenarios', 'onboarding',
+  'dynatrace', 'authentication', 'learning-management', 'incident-correlation', 'root-cause-analysis', 'workflow-handoff', 'e2e-scenarios', 'onboarding', 'plan-review',
 ];
 
 /**
