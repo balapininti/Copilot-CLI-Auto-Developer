@@ -101,6 +101,29 @@ node scripts\autodev.mjs next --story S-01234 --project <id>
 
 Prerequisites: Windows 10/11, PowerShell 6 or later (a Copilot CLI requirement), Node.js 22.12+, git, GitHub Copilot CLI (`npm install -g @github/copilot` or `winget install GitHub.Copilot`), and Microsoft Edge. `playwright-core` drives the installed Edge and downloads no browser. `autodev doctor` checks all of this.
 
+## Updating and customising
+
+```powershell
+cd C:\DevWorkspace\automation
+git pull
+npm ci
+node scripts\autodev.mjs discovery verify
+```
+
+Start a new Copilot session afterwards. An update never touches `projects\` or `state\`, which live outside this folder.
+
+Skills and agents are plain Markdown under `.github\skills\` and `.github\agents\`, so you can edit them; the hook stops the agents from doing so, not you. Most team-specific changes do not belong there, though:
+
+| You want to change | Change this |
+|---|---|
+| How your team codes, branches, tests or reviews | `projects\<id>\guidelines\*.md` |
+| URLs, repositories, schemas, test commands, policies | `projects\<id>\project.yaml` and the environment variables |
+| A rule the agent should have picked up | Approve a learning it proposes |
+| How an agent uses a capability, for every project | The skill or agent file |
+| What a command does or enforces | The code under `src\`, with tests |
+
+Commit your own edits so `git pull` can merge with them, or work from a fork. [docs/setup.md](docs/setup.md#updating-and-customising) has the details.
+
 ## Workspace layout
 
 ```
@@ -173,7 +196,7 @@ node scripts\autodev.mjs help
 
 | Document | Contents |
 |---|---|
-| [docs/setup.md](docs/setup.md) | Start here. Thirteen steps from an empty workstation to a first story: onboarding, URLs and tokens, `project.yaml`, your team's process, verifying each integration, a first-story walkthrough, scenarios, monitoring, learning, and a command quick reference |
+| [docs/setup.md](docs/setup.md) | Start here. Thirteen steps from an empty workstation to a first story: onboarding, URLs and tokens, `project.yaml`, your team's process, verifying each integration, a first-story walkthrough, scenarios, monitoring, learning, a command quick reference, and how to update and customise |
 | [docs/diagrams.md](docs/diagrams.md) | Sixteen diagrams: layers, configuration, ticket to PR, the next-step loop, plan evaluation, gates, approvals, authentication, monitoring, handoff, learning, scenarios, onboarding |
 | [docs/architecture.md](docs/architecture.md) | Layers, agents and skills, discovery, the principles the code is built on, both workflows |
 | [docs/security.md](docs/security.md) | What is enforced and where, approvals, the hook, the opt-in exceptions, threat model and limits |
