@@ -383,7 +383,8 @@ What happens, and what you will be asked:
 | 8 | Automated review | agent | Checks for secrets, disabled TLS, string-built SQL, disabled tests and similar |
 | 9 | Independent review | `code-reviewer` | A verdict covering nine areas, including whether the change matches the plan |
 | 10 | Commit and open the PR | agent | **You approve** the exact pull request content in a separate terminal |
-| 11 | Report | agent | PR links, what was tested, what is left open |
+| 11 | Learning check | agent | It proposes rules from what went wrong on this story or keeps recurring. **You approve** the ones that are true in general |
+| 12 | Report | agent | PR links, what was tested, what is left open, what is waiting for you |
 
 Approvals are always decided by you, in a **separate terminal**, where you see the exact content:
 
@@ -446,15 +447,41 @@ The task runs as you, without elevation, and never opens a sign-in window. Detai
 
 ## Step 13: Let it learn, with your approval
 
-When the agent finds something worth keeping ("the integration profile needs Docker running"), it proposes a learning. You approve the exact text in your own terminal; only then is it written to `knowledge\<skill>\approved.md` and given to future sessions.
+Learning is always on, and always needs your approval. Nothing is saved because an agent decided it should be, and the agents and skills never rewrite themselves; what grows is the project's `knowledge\` folder.
+
+**Every story ends with a learning check.** Before its final report the agent runs `autodev learn suggest`, which searches the recorded history for evidence worth turning into a rule:
+
+| It finds | Example |
+|---|---|
+| A blocking finding that sent this story's plan back | "P1: the invoice batch job reads this table and is not in the plan" |
+| A gate that failed more than once on this story | The tests gate failed three times before passing |
+| Much the same finding on several stories | The batch job was missed on S-01001 and again on S-01002 |
+| An area where plans keep failing | Blocking findings under "blast radius" on four stories |
+| A gate that fails first time on most stories | |
+
+For each one the agent either proposes a rule or sets it aside with a reason. It also proposes a rule for any correction you gave it that will apply again.
+
+**You approve the exact text**, in your own terminal:
 
 ```powershell
-node scripts\autodev.mjs learn list   --project orders
+node scripts\autodev.mjs learn list --project orders                  # what is proposed, with its evidence
 node scripts\autodev.mjs approvals review apr-… --project orders
-node scripts\autodev.mjs learn verify --project orders
 ```
 
-Do not edit `approved.md` by hand: a file that differs from what was approved fails its integrity check and is ignored. Standing team rules belong in `guidelines\`, which you edit freely.
+`autodev next` lists the approvals waiting for you, so proposals do not sit unseen.
+
+**Approved rules are used automatically.** They are written to `knowledge\<area>\approved.md` and given to the agent doing the matching task on every later story: a rule filed under `plan-review` reaches the planner and the plan reviewer, one under `testing` reaches whoever runs and reviews tests, and so on.
+
+To look for patterns yourself at any time, or to check the knowledge files have not been altered:
+
+```powershell
+node scripts\autodev.mjs learn suggest --project orders
+node scripts\autodev.mjs learn verify  --project orders
+```
+
+Do not edit `approved.md` by hand: a file that differs from what was approved fails its integrity check and is ignored. Standing team rules you already know belong in `guidelines\`, which you edit freely.
+
+Approve a rule only if it is true in general. A wrong rule is followed on every later story; a dismissed signal costs nothing.
 
 ## End-to-end testing of your application
 
@@ -527,7 +554,7 @@ No skill has its own configuration file. This table shows what must be in place 
 | incident-correlation | | | `services[]`, `monitoring.correlation` |
 | root-cause-analysis | | | `services[]`, `repositories[]` |
 | workflow-handoff | | | `agility.defectScope`, `monitoring.incidentPolicy` |
-| learning-management | | | `learning.persistence` |
+| learning-management | | | `learning.persistence`. Always on; every rule needs your approval |
 | e2e-scenarios | | | `browser.allowedHosts` (the application under test), `repositories[]` |
 | plan-review | | | `policies.planReview` (`required` by default) |
 | onboarding | | | None: it creates the file. Needs a session started without a project |
@@ -560,6 +587,7 @@ Run as `node scripts\autodev.mjs <command>` from the automation folder. `autodev
 | See a story's branches, gates and PRs | `run show --story <S-…>` |
 | List and run end-to-end scenarios | `scenario list`, `scenario run --all` |
 | See what monitoring found | `incident list`, `monitor status` |
+| See what is worth learning from | `learn suggest` |
 | See what it has learned or wants to | `learn list`, `learn verify` |
 | See everything that was done | `audit show`, `audit verify` |
 

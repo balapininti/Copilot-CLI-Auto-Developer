@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 
 import * as git from '../../adapters/bitbucket/git.js';
+import { listApprovals } from '../../core/approvals.js';
 import { AutoDevError, ErrorCodes } from '../../core/errors.js';
 import { runCommand } from '../../core/exec.js';
 import { resolveInside, safeId } from '../../core/state-store.js';
@@ -114,6 +115,8 @@ export async function gatherFacts(ctx) {
         shouldFix: titles(['P2']),
       },
       repos,
+      learningChecked: Boolean(run.learningCheck),
+      pendingApprovals: listApprovals(ctx.workspace, projectId, { status: 'pending' }).map((approval) => ({ id: approval.id, action: approval.action, summary: approval.summary })),
     },
   };
 }
@@ -125,7 +128,7 @@ export const assistCommands = {
     usage: 'next --story <S-01234>',
     run: async (ctx) => {
       const { facts } = await gatherFacts(ctx);
-      return { storyId: facts.storyId, next: nextStep(facts), progress: progress(facts) };
+      return { storyId: facts.storyId, next: nextStep(facts), progress: progress(facts), waitingForYou: facts.pendingApprovals ?? [] };
     },
   },
 

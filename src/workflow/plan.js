@@ -83,7 +83,7 @@ export async function submitPlan(workspace, input) {
     if (run.plan?.hash === hash) return { ...planView(run), unchanged: true };
     const version = (run.plan?.version ?? 0) + 1;
     // The earlier evaluation is kept for the record; it is stale because its planHash no longer matches.
-    run.plan = { version, hash, text, submittedAt: new Date().toISOString(), review: run.plan?.review ?? null, rounds: run.plan?.rounds ?? 0 };
+    run.plan = { version, hash, text, submittedAt: new Date().toISOString(), review: run.plan?.review ?? null, rounds: run.plan?.rounds ?? 0, reviews: run.plan?.reviews ?? [] };
     addHistory(run, 'plan-submitted', { version, planHash: hash });
     return { ...planView(run), unchanged: false };
   });
@@ -178,6 +178,8 @@ export async function reviewPlan(workspace, input) {
       round: (run.plan.rounds ?? 0) + 1,
     };
     run.plan.rounds = run.plan.review.round;
+    // Kept across revisions: the findings that sent a plan back are what a project learns from.
+    run.plan.reviews = [...(run.plan.reviews ?? []), { verdict: input.verdict, version: run.plan.version, at: run.plan.review.at, counts: run.plan.review.counts, findings: findings.map((finding) => ({ priority: finding.priority, area: finding.area, title: finding.title })) }].slice(-20);
     addHistory(run, 'plan-reviewed', { version: run.plan.version, verdict: input.verdict, reviewer, counts: run.plan.review.counts });
     return planView(run);
   });

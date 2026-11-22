@@ -94,6 +94,7 @@ Copilot CLI discovers agents and skills from `.github\agents` and `.github\skill
 | No PR, ticket, comment, schema change or start of defect work without the configured approval | Approvals bound to a SHA-256 of the exact payload, single-use, decided at a real terminal |
 | A baseline end-to-end scenario cannot be changed without approval | Only `scenario apply` writes one; an edited scenario fails its integrity check and is not run as a baseline; an update names every expectation it removes |
 | An agent cannot create a project or set its own policies | `onboard propose` stages every file for approval; `onboard apply` writes exactly what was approved; answers cannot set a policy |
+| Every story is checked for something to learn | `autodev next` does not reach the final report until `learn suggest` has run for the story; it raises recorded evidence (plan findings, repeated gate failures, the same finding across stories) for a rule to be proposed |
 | No learning without approval of the exact text | Only `learn apply` writes knowledge; unapproved files fail an integrity check and are never loaded |
 | DB2 is read-only and scoped | SQL guard, row and time limits, column redaction; no write path |
 | Telemetry queries are scoped and bounded | Explicit indexes and entity selectors, capped windows and results |
@@ -122,7 +123,7 @@ node scripts\autodev.mjs help
 | Quality | `plan submit/show/review`, `test run`, `review run/record`, `run show`, `pr create` |
 | End-to-end scenarios | `scenario import/run/propose/apply/list/show/affected` |
 | Monitoring | `splunk search`, `dynatrace problems/metrics`, `monitor run/status/verify-resolution`, `incident list/show/classify/link-pr/close`, `handoff list/authorize/next/complete` |
-| Governance | `approvals list/show/review`, `learn propose/apply/list/verify`, `audit show/verify` |
+| Governance | `approvals list/show/review`, `learn suggest/propose/apply/list/verify`, `audit show/verify` |
 
 ## Documentation
 

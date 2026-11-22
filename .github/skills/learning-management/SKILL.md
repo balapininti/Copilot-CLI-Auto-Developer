@@ -13,12 +13,35 @@ Run `autodev <command>` as `node "$env:AUTODEV_HOME\scripts\autodev.mjs" <comman
 
 | Step | Command |
 |---|---|
-| Propose | `autodev learn propose --skill <area> --rule "…" --evidence "…" --source "<S-… or INC-…>"` |
+| Find what is worth learning from | `autodev learn suggest --story <S-…>` (every story ends with this) |
+| Propose | `autodev learn propose --skill <area> --rule "…" --evidence "…" --source "<S-… or INC-…>" [--signal <key>]` |
+| Set a signal aside | `autodev learn suggest --dismiss <key> --reason "…"` |
 | See staged proposals | `autodev learn list` |
 | Write an approved one | `autodev learn apply --approval <id>` |
 | Check knowledge is untampered | `autodev learn verify` |
 
-`--skill` is the knowledge area: `project-context`, `agility`, `bitbucket`, `db2`, `java-spring`, `browser-playwright`, `testing`, `code-review`, `splunk`, `dynatrace`, `authentication`, `incident-correlation`, `root-cause-analysis`, `workflow-handoff`. The target file is `projects/<id>/knowledge/<area>/approved.md`.
+`--skill` is the knowledge area: `project-context`, `agility`, `bitbucket`, `db2`, `java-spring`, `browser-playwright`, `testing`, `code-review`, `splunk`, `dynatrace`, `authentication`, `incident-correlation`, `root-cause-analysis`, `workflow-handoff`, `plan-review`, `e2e-scenarios`. The target file is `projects/<id>/knowledge/<area>/approved.md`.
+
+## Every story ends with a learning check
+
+When `autodev next` gives the step `capture-learnings`, run `autodev learn suggest --story <S-…>`. It returns `signals`: evidence of something that went wrong, found in the recorded history.
+
+| `kind` | What it means |
+|---|---|
+| `blocking-plan-finding` | This story's plan was sent back for a P0 or P1 |
+| `gate-failed-repeatedly` | A gate failed more than once on this story before passing |
+| `same-finding-on-several-stories` | Much the same plan finding was raised on two or more stories. The strongest signal |
+| `plan-area-keeps-failing` | Plans keep getting blocking findings in one area (for example blast radius) |
+| `gate-usually-fails-first` | A gate fails first time on most stories |
+
+For each signal, answer its `question`. Then do exactly one of:
+
+- **A general rule would have prevented it:** propose it, filed under the signal's `knowledgeArea`, passing `--signal <key>` so it is not raised again.
+- **It was particular to this story, or you cannot state a rule you are sure is true:** `autodev learn suggest --dismiss <key> --reason "…"`.
+
+Also propose a rule for any correction the user gave you during the story that will apply again. Never propose a rule just to clear a signal: a wrong rule is followed on every later story. An empty `signals` list is a normal result.
+
+Approved learnings come back to you without asking: `autodev context` and `autodev project guidelines` include the ones for the task at hand, marked `approved-learning`. Treat them as the project's rules.
 
 ## Procedure
 

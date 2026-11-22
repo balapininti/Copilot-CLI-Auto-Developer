@@ -42,7 +42,8 @@ describe('next step', () => {
       [facts({ repos: [repoFacts({ dirty: true, changedFiles: 2, worktreeBlockers: ALL_GATES.slice(2) })] }), 'independent-review', 'code-reviewer'],
       [facts({ repos: [repoFacts({ dirty: true, changedFiles: 2 })] }), 'commit', 'auto-developer'],
       [facts({ repos: [repoFacts({ changedFiles: 2 })] }), 'open-pull-request', 'auto-developer'],
-      [facts({ repos: [repoFacts({ changedFiles: 2, pr: { url: 'https://bitbucket.example.internal/pr/1' } })] }), 'report', 'auto-developer'],
+      [facts({ repos: [repoFacts({ changedFiles: 2, pr: { url: 'https://bitbucket.example.internal/pr/1' } })] }), 'capture-learnings', 'auto-developer'],
+      [facts({ learningChecked: true, repos: [repoFacts({ changedFiles: 2, pr: { url: 'https://bitbucket.example.internal/pr/1' } })] }), 'report', 'auto-developer'],
     ];
     for (const [input, step, actor] of sequence) {
       const result = nextStep(/** @type {any} */ (input));
@@ -88,6 +89,17 @@ describe('next step', () => {
     const step = nextStep(facts({ planRequired: false, plan: { exists: false, evaluated: false, stale: false, verdict: null, rounds: 0, blocking: [], shouldFix: [] } }));
     assert.equal(step.step, 'write-plan');
     assert.match(step.why, /advisory/);
+  });
+
+  test('every story ends with the learning check, and the report lists what is waiting for the user', () => {
+    const done = { repos: [repoFacts({ changedFiles: 2, pr: { url: 'x' } })] };
+    const learn = nextStep(facts(done));
+    assert.equal(learn.step, 'capture-learnings');
+    assert.equal(learn.command, 'autodev learn suggest --story S-01001');
+    assert.equal(learn.skill, 'learning-management');
+    const report = nextStep(facts({ ...done, learningChecked: true, pendingApprovals: [{ id: 'apr-1', action: 'learning.write', summary: 'Save a learning to knowledge/testing/approved.md' }] }));
+    assert.equal(report.step, 'report');
+    assert.match(String(report.details?.join(' ')), /Waiting for the user: Save a learning .* approvals review apr-1/);
   });
 
   test('progress is a short status', () => {

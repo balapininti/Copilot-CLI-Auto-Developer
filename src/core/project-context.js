@@ -215,12 +215,12 @@ export function findService(manifest, serviceName) {
 
 /** Which guideline files and knowledge areas each task type needs. */
 const TASK_CONTEXT = Object.freeze({
-  implement: { guidelines: ['architecture', 'coding-standards', 'development-workflow', 'testing-standards'], skills: ['java-spring', 'bitbucket', 'db2', 'testing'] },
-  test: { guidelines: ['testing-standards', 'development-workflow'], skills: ['testing', 'browser-playwright'] },
-  review: { guidelines: ['coding-standards', 'architecture', 'testing-standards'], skills: ['code-review', 'java-spring'] },
+  implement: { guidelines: ['architecture', 'coding-standards', 'development-workflow', 'testing-standards'], skills: ['java-spring', 'bitbucket', 'db2', 'testing', 'plan-review'] },
+  test: { guidelines: ['testing-standards', 'development-workflow'], skills: ['testing', 'browser-playwright', 'e2e-scenarios'] },
+  review: { guidelines: ['coding-standards', 'architecture', 'testing-standards'], skills: ['code-review', 'java-spring', 'testing', 'db2'] },
   investigate: { guidelines: ['architecture'], skills: ['splunk', 'dynatrace', 'incident-correlation', 'root-cause-analysis', 'db2', 'workflow-handoff', 'authentication'] },
   database: { guidelines: ['architecture', 'coding-standards'], skills: ['db2'] },
-  plan: { guidelines: ['architecture', 'development-workflow'], skills: ['project-context', 'agility', 'bitbucket', 'workflow-handoff', 'authentication'] },
+  plan: { guidelines: ['architecture', 'development-workflow'], skills: ['project-context', 'agility', 'bitbucket', 'workflow-handoff', 'authentication', 'plan-review', 'db2', 'testing', 'code-review'] },
 });
 
 export const TASK_TYPES = Object.freeze(Object.keys(TASK_CONTEXT));

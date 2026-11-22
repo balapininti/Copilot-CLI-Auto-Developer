@@ -89,6 +89,8 @@ const OPTIONS = {
   path: { type: 'string', multiple: true },
   guidelines: { type: 'string' },
   'plan-hash': { type: 'string' },
+  signal: { type: 'string' },
+  dismiss: { type: 'string' },
   checklist: { type: 'string' },
   symbol: { type: 'string' },
   'max-chars': { type: 'string' },

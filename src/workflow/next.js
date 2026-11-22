@@ -30,6 +30,8 @@
  * @property {boolean} planRequired
  * @property {{ exists: boolean, evaluated: boolean, stale: boolean, verdict: string | null, rounds: number, blocking: string[], shouldFix: string[] }} plan
  * @property {RepoFacts[]} repos
+ * @property {boolean} [learningChecked] the learning check has been run for this story
+ * @property {Array<{ id: string, action: string, summary: string }>} [pendingApprovals] requests waiting for a person
  *
  * @typedef {object} Step
  * @property {string} step
@@ -153,10 +155,21 @@ export function nextStep(facts) {
       why: 'The change is committed and every gate matches the commit. This usually needs the user\'s approval (APPROVAL_REQUIRED).',
     };
   }
+  if (!facts.learningChecked) {
+    return {
+      step: 'capture-learnings', title: 'Look for what this story should teach the project', actor: 'auto-developer', skill: 'learning-management', repository: null,
+      command: `autodev learn suggest --story ${story}`,
+      why: 'Every story ends with this check. It lists what went wrong on the way (plan findings, gates that failed) and what keeps recurring across stories, so that a rule can be proposed for the user to approve.',
+      details: ['Also propose a rule for any correction the user gave you during this story that will apply again.'],
+    };
+  }
   return {
     step: 'report', title: 'Report to the user', actor: 'auto-developer', skill: null, repository: null, command: `autodev run show --story ${story}`,
     why: 'Every prepared repository has a pull request.',
-    details: ['Report the pull request links, what was tested stage by stage, the review outcome, risks and anything left open. Then offer any learning through the learning-management skill.'],
+    details: [
+      'Report the pull request links, what was tested stage by stage, the review outcome, risks and anything left open.',
+      ...(facts.pendingApprovals ?? []).map((approval) => `Waiting for the user: ${approval.summary} (autodev approvals review ${approval.id})`),
+    ],
   };
 }
 

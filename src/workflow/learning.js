@@ -31,7 +31,7 @@ import { projectDir, stateDirFor } from '../core/workspace.js';
 /** Knowledge is filed per skill; these are the areas a learning can belong to. */
 export const KNOWLEDGE_AREAS = Object.freeze([
   'project-context', 'agility', 'bitbucket', 'db2', 'java-spring', 'browser-playwright', 'testing', 'code-review',
-  'splunk', 'dynatrace', 'authentication', 'incident-correlation', 'root-cause-analysis', 'workflow-handoff',
+  'splunk', 'dynatrace', 'authentication', 'incident-correlation', 'root-cause-analysis', 'workflow-handoff', 'plan-review', 'e2e-scenarios',
 ]);
 
 const MAX_RULE_LENGTH = 800;

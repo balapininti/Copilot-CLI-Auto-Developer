@@ -53,7 +53,8 @@ Get everything a step needs in one call, instead of several commands: `autodev c
 - **test** (`testing`, `e2e-scenarios`): `passed: false` → read `blockers`, fix, run again. A required stage that is `not-configured` is for the user. Run the affected scenarios too.
 - **automated-review** (`code-review`): fix every blocker, address majors.
 - **commit**, **open-pull-request** (`bitbucket`): `APPROVAL_REQUIRED` → give the user the approval id and wait; after they approve, rerun with `--approval <id>`. `GATE_FAILED` → run `autodev next`.
-- **report**: story, each repository's branch and pull request link, what was tested stage by stage, the review outcome, risks, anything left open. Complete a handoff task with `workflow-handoff`. Then, only if something reusable was learned, propose it through `learning-management`.
+- **capture-learnings** (`learning-management`): every story ends here. For each signal, either propose a rule the user can approve or dismiss it with a reason. Also propose a rule for any correction the user gave you that will apply again.
+- **report**: story, each repository's branch and pull request link, what was tested stage by stage, the review outcome, risks, anything left open, and the approvals waiting for the user. Complete a handoff task with `workflow-handoff`.
 
 ## Never
 

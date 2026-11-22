@@ -13,7 +13,7 @@ import { AutoDevError, ErrorCodes } from '../../core/errors.js';
 import { loadManifest } from '../../core/manifest.js';
 import { getActiveProject, listProjectIds } from '../../core/project-context.js';
 import { redact, redactString } from '../../core/redact.js';
-import { withLock } from '../../core/state-store.js';
+import { safeId, withLock } from '../../core/state-store.js';
 import { stateDirFor } from '../../core/workspace.js';
 import { startMockServer, demoScenario } from '../../mocks/server.js';
 import { buildDefectDraft } from '../../monitoring/defect-draft.js';
@@ -24,6 +24,7 @@ import { createLiveSources } from '../../monitoring/sources.js';
 import { runMany, runOnce, verifyResolution } from '../../monitoring/worker.js';
 import { runDemo } from '../../workflow/demo.js';
 import { applyLearning, KNOWLEDGE_AREAS, listProposals, proposeLearning, verifyKnowledge } from '../../workflow/learning.js';
+import { findSignals, markSignal, recordLearningCheck } from '../../workflow/learning-signals.js';
 
 /**
  * @param {import('../main.js').CommandContext} ctx
@@ -315,13 +316,30 @@ export const monitoringCommands = {
 
   'learn propose': {
     summary: 'Propose a learning. Stages the exact text and an approval request; writes nothing to knowledge.',
-    usage: `learn propose --skill <${KNOWLEDGE_AREAS.join('|')}> --rule "When X, always/never Y" --evidence "..." --source "S-01234"`,
-    run: (ctx) => {
+    usage: `learn propose --skill <${KNOWLEDGE_AREAS.join('|')}> --rule "When X, always/never Y" --evidence "..." --source "S-01234" [--signal <key from learn suggest>]`,
+    run: async (ctx) => {
       const { projectId } = ctx.project();
       if (ctx.dryRun) return { dryRun: true, wouldPropose: { skill: ctx.need('skill'), rule: ctx.need('rule') } };
-      return proposeLearning(ctx.workspace, {
+      const proposal = await proposeLearning(ctx.workspace, {
         projectId, skill: ctx.need('skill'), rule: ctx.need('rule'), evidence: (ctx.flags.evidence ?? []).join('; '), source: ctx.need('source'),
       });
+      // The signal that prompted this rule is not raised again.
+      if (ctx.flags.signal) markSignal(ctx.workspace, projectId, String(ctx.flags.signal), 'proposed', proposal.approvalId);
+      return proposal;
+    },
+  },
+  'learn suggest': {
+    summary: 'What is worth learning from: what went wrong on a story, and what keeps recurring across stories. Evidence for a proposal; saves nothing.',
+    usage: 'learn suggest [--story <S-01234>] | learn suggest --dismiss <signal-key> --reason "..."',
+    run: async (ctx) => {
+      const { projectId } = ctx.project();
+      if (ctx.flags.dismiss) {
+        return { dismissed: String(ctx.flags.dismiss), ...markSignal(ctx.workspace, projectId, String(ctx.flags.dismiss), 'dismissed', ctx.need('reason')) };
+      }
+      const storyId = ctx.flags.story ? safeId(String(ctx.flags.story).toUpperCase(), 'story id') : null;
+      const result = findSignals(ctx.workspace, { projectId, storyId });
+      if (storyId && !ctx.dryRun) await recordLearningCheck(ctx.workspace, { projectId, storyId, signals: result.signals.length });
+      return { ...result, pendingProposals: listProposals(ctx.workspace, projectId).filter((proposal) => proposal.status === 'pending').map((proposal) => ({ approvalId: proposal.approvalId, skill: proposal.skill })) };
     },
   },
   'learn apply': {

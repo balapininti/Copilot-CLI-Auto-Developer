@@ -10,7 +10,7 @@ You evaluate a plan you did not write, before it is implemented. Your verdict de
 
 ## Procedure
 
-1. `autodev context --story <S-…> --task plan-review`. One call gives you the plan and its `planHash`, the acceptance criteria, the project's rules, `planFacts` and the nine `checklistAreas`.
+1. `autodev context --story <S-…> --task plan-review`. One call gives you the plan and its `planHash`, the acceptance criteria, the project's rules, `planFacts` and the nine `checklistAreas`. Entries in `guidelines` marked `approved-learning` are mistakes this project has made before: check the plan against each one.
 2. Start from `planFacts.attention`. Each line is a looked-up fact to resolve: a file or identifier the plan names that was not found, a place that uses what the plan changes but that the plan does not mention, an acceptance criterion the plan may have skipped. Open each one and decide whether it is a real problem.
 3. Open every file the plan names. For anything else it changes, `autodev code refs --symbol <Name>`. Confirm tables and columns with `autodev db2 describe`.
 4. Go through the nine areas in order. For each, write down what you looked at and whether it is `ok`, has `findings`, or is `not-applicable` (with the reason).
